@@ -1,33 +1,49 @@
-# Hardware Monitoring Design
+# Hardware monitoring design
 
-The hardware domain is a bounded, fault-isolated observation pipeline. A failed
-SMART command must not remove CPU, memory, filesystem, Docker or other hardware
+The hardware domain is a bounded, fault-isolated observation pipeline. A SMART
+failure must not remove CPU, memory, filesystem, Docker, or other hardware
 observations.
 
-## Sources and normalization
+## Resource model
 
-The Client collects CPU, memory, system identity, filesystems, physical disks
-and SMART through fixed parsers. Hardware presentation distinguishes physical
-disk properties (model, capacity, temperature, SMART and power-on hours) from
-volumes/filesystems (mountpoint, source, type, usage and collection state).
-This supports DSM RAID, mdraid, LVM and device-mapper without invented disk
-ownership.
+The Client separates physical disks from volumes/filesystems. Physical disk
+properties include identity, capacity, SMART, temperature, and power-on hours;
+filesystem observations describe an explicitly configured mountpoint, source,
+type, capacity, and use. This prevents invented ownership for DSM RAID, mdraid,
+LVM, and device-mapper volumes.
 
-The overview selects the largest healthy configured filesystem. On DSM, a data
-volume can therefore be selected naturally without hard-coding a volume name.
+Server diagnostics identify the affected disk or filesystem with a stable
+resource key. Equal errors from two disks remain two diagnostics. Diagnostic
+lists are bounded but retain count/truncation evidence and prioritize faults.
 
 ## SMART semantics
 
-SMART devices are explicit allowlist entries. A native return-status result is
-preferred. When native return status is unavailable but attributes and
-thresholds provide a trustworthy fallback, the disk may be `passed` with
-`partial` quality, `health_source: attribute_check` and a diagnostic warning.
-That useful partial state does not by itself degrade the entire storage or
-device state. A real failed health result remains a failure. If a trusted fallback coexists with a different invalid SMART field, both diagnostics remain visible and the integrity error stays primary.
+Explicit `smart_devices` configuration is authoritative. Automatic discovery
+prefers qualified open-device scan evidence, falls back safely, and
+deduplicates by device path so a known transport is not duplicated as an empty
+transport candidate. It does not hard-code a NAS vendor, disk model, or
+transport type.
+
+Native SMART return status is preferred. If it is unavailable but attributes
+and thresholds support a trustworthy fallback, the disk can report
+`health=passed` or `health=failed`, `health_source=attribute_check`, and
+`completeness=partial`. The native-status limitation is visible but, for a
+passed result, is not by itself a hardware/device fault. A failed result remains
+a real disk health failure.
+
+Field-quality failures are independent evidence. For example, an invalid
+temperature remains an invalid-value diagnostic even if an attribute fallback
+also provides a usable health result. Valid fields remain available; an old
+single-error field, where retained for compatibility, has a deterministic
+primary error but does not erase the other structured diagnostic.
+
+Do not re-probe alternative transports after a valid failed health result, add
+`-T permissive`, replace `-x` with `-a`, or weaken SMART validation to hide an
+error.
 
 ## Least privilege
 
-Use explicit device mappings and `SYS_RAWIO` when required. Do not use
-privileged mode, `SYS_ADMIN`, broad `/dev`, `/dev/sg*`, host root or arbitrary
-paths. Filesystem observation uses configured narrow read-only probe mounts;
-DSM version data, when necessary, is likewise a narrow read-only input.
+Use explicit read-only device mappings and `SYS_RAWIO` only where needed. Do
+not use privileged mode, `SYS_ADMIN`, broad `/dev`, `/dev/sg*`, host root, or
+arbitrary probe paths. Filesystem and DSM identity probes are fixed narrow
+read-only mounts.

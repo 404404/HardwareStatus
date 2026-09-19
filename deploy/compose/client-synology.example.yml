@@ -1,8 +1,8 @@
 # Synology DSM Container Manager template for the Client only.
-# Set HERMESSTATUS_CLIENT_TAG to the exact published 2.5-<sha12> candidate.
+# Set HERMESSTATUS_CLIENT_TAG to the exact approved candidate tag.
 services:
   hermesstatus-client:
-    image: ghcr.io/404404/hermesstatus-client:${HERMESSTATUS_CLIENT_TAG:?set immutable 2.5 candidate tag}
+    image: ghcr.io/404404/hermesstatus-client:${HERMESSTATUS_CLIENT_TAG:?set approved immutable candidate tag}
     container_name: hermesstatus-client-2x
     restart: unless-stopped
     read_only: true

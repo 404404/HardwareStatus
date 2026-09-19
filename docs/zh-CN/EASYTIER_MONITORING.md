@@ -1,23 +1,32 @@
 # EasyTier 监控设计
 
-EasyTier 是只读 Client 域。它通过固定本地 CLI 与 loopback RPC 采集受限的节点、peer、route、connector 和流量投影，不会管理 EasyTier。
+EasyTier 是只读 Client domain。它通过固定本地 CLI 和固定 loopback RPC 策略采集 node、peer、
+route、connector 与 traffic 的有界投影，不管理 EasyTier。
 
-## 数据模型
+## 证据与失败语义
 
-Server 只保存经过严格校验的白名单字段。节点、采集状态、peer、route、connector、流量与可选 expectation 独立保存。原始配置、端点地址、凭据、密钥和任意 feature object 均被排除。
+每条固定 command 独立记录 collection time、duration、status 和 last successful collection。
+失败周期不能用虚构的空 payload 覆盖已有 command evidence。timeout、CLI execution、RPC
+unavailable 和 parse failure 保持不同诊断。
 
-仅当有 direct connection evidence 且 target/next-hop ID 一致时 path 才是 `direct`；ID 不同才是 `relayed`；否则为 `unknown`。transport 与 address family 是独立枚举。没有远端 peer 时，Direct、Relay 与 IPv6 UDP Direct 均为 `not_observable`。
+`last_success_at` 表示最后成功 command result；失败时不能改写为本次 attempt time。当前数据仅在
+Client report 被 Server 时钟接受后才 fresh。
 
-expectation 是操作员诊断，不是设备身份。它可比较 network、overlay address、proxy CIDR 与 administrative role，但不能选择凭据、认证设备或自动注册。
+## 汇总、展示上限与不确定性
 
-## 采集语义
+Client 按 own peer ID 排除本机 peer。total、direct、relay、unknown path 和 IPv6 UDP direct 等
+汇总基于完整已校验观测集，而不是 display 保留的行。展示列表独立限额：peer、route、connector、
+traffic-by-instance 最多 16 条，traffic sample 最多 64 条。
 
-每条固定命令都独立记录状态与时间。部分命令失败时不得伪造空列表：有 last-known data 则保留，否则明确标记该数据 unavailable。只有 Server 时钟下收到已接受上报后域才是 fresh。未知 schema/version 应报告 unsupported，不能透传 raw 数据。
+每个有界列表的 `total`、`displayed_total` 和 `truncated` 区分观测数据与渲染数据；改变输入顺序
+不能改变汇总结论。IPv6 UDP direct 仅在有正向 direct IPv6/UDP 证据时为 true；仅在相关观测
+确凿时为 false；证据不足时为 null/不可观测。
+
+traffic baseline 绑定观测到的 network 与 instance identity。network/instance 变化、已知 restart、
+counter reset 或过长采样间隔会重新建立 baseline，而不是报告误导性的瞬时速率。
 
 ## 安全边界
 
-运行时 allowlist 只有只读查询，排除 connector、route、credential、whitelist、port-forward、logger 和 service lifecycle 命令。RPC 只允许 loopback。UI 读取既有 stats 文档，不创建 EasyTier 控制接口。
-
-## 当前限制
-
-部分 EasyTier 2.6.4 输出可能在 peer-list 响应中包含本机节点。Client 会按 own-peer-ID 或显式 `Local` 标记排除该行。peer、route、connector 与流量明细都有独立的输入资源上限和显示上限；发生截断时会保留观察总数、显示数与 `truncated`，UI 不会把截断后的数组长度误报为总数。
+运行时 allowlist 只有只读 query，不含 connector、route、credential、whitelist、port-forward、
+logging 或 service lifecycle command。原始配置、endpoint secret、credential 和任意 feature object
+不会投影。UI 只读取已有 stats 文档，不创建控制 endpoint。

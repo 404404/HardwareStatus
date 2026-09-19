@@ -1,4 +1,4 @@
-"""Pure HermesStatus 2.2 Client contracts.
+"""Pure HardwareStatus Client contracts.
 
 This Stage A module performs no network I/O, DNS, TLS, token-file reads, or
 production entrypoint integration.

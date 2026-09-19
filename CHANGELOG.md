@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased — HermesStatus 2.2 Multi-Device
+## Unreleased — HardwareStatus
+
+### Changed
+
+- Rename the public GitHub repository, source URLs, OCI title metadata, and
+  documentation to HardwareStatus while retaining deployed `hermesstatus`
+  runtime names, image packages, configuration paths, and protocol headers as
+  compatibility contracts.
+
+## Historical — HermesStatus 2.2 Multi-Device
 
 - Add a startup-only manual Server Registry with a strict 16-device limit,
   registry-authoritative display names and no automatic registration or

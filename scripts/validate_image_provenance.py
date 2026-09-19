@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate immutable HermesStatus image identity without exposing build inputs."""
+"""Validate immutable HardwareStatus image identity without exposing build inputs."""
 
 import argparse
 import datetime as dt
@@ -225,7 +225,7 @@ def main() -> int:
         client_inspect = inspect_image(args.client_image)
         server = validate_inspect(
             server_inspect,
-            expected_title="HermesStatus Server",
+            expected_title="HardwareStatus Server",
             expected_entrypoint=["/usr/local/bin/serverstatus"],
             version=args.version,
             revision=args.revision,
@@ -234,7 +234,7 @@ def main() -> int:
         )
         client = validate_inspect(
             client_inspect,
-            expected_title="HermesStatus Client",
+            expected_title="HardwareStatus Client",
             expected_entrypoint=["/app/entrypoint.sh"],
             version=args.version,
             revision=args.revision,

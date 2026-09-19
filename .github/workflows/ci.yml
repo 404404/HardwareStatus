@@ -97,7 +97,7 @@ jobs:
           echo "product_version=2.5" >> "$GITHUB_OUTPUT"
           echo "vcs_ref=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
           echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
-          echo "source=https://github.com/404404/HermesStatus" >> "$GITHUB_OUTPUT"
+          echo "source=https://github.com/404404/HardwareStatus" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -189,17 +189,17 @@ jobs:
           platforms: linux/amd64
           tags: ghcr.io/${{ github.repository_owner }}/hermesstatus-server:${{ steps.provenance.outputs.candidate_tag }}
           labels: |
-            org.opencontainers.image.title=HermesStatus Server
+            org.opencontainers.image.title=HardwareStatus Server
             org.opencontainers.image.version=2.6
             org.opencontainers.image.revision=${{ steps.provenance.outputs.vcs_ref }}
             org.opencontainers.image.created=${{ steps.provenance.outputs.build_date }}
-            org.opencontainers.image.source=https://github.com/404404/HermesStatus
+            org.opencontainers.image.source=https://github.com/404404/HardwareStatus
             io.hermesstatus.component=server
           build-args: |
             VERSION=2.6
             VCS_REF=${{ steps.provenance.outputs.vcs_ref }}
             BUILD_DATE=${{ steps.provenance.outputs.build_date }}
-            SOURCE_URL=https://github.com/404404/HermesStatus
+            SOURCE_URL=https://github.com/404404/HardwareStatus
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -208,14 +208,14 @@ jobs:
           platforms: linux/amd64
           tags: ghcr.io/${{ github.repository_owner }}/hermesstatus-client:${{ steps.provenance.outputs.candidate_tag }}
           labels: |
-            org.opencontainers.image.title=HermesStatus Client
+            org.opencontainers.image.title=HardwareStatus Client
             org.opencontainers.image.version=2.6
             org.opencontainers.image.revision=${{ steps.provenance.outputs.vcs_ref }}
             org.opencontainers.image.created=${{ steps.provenance.outputs.build_date }}
-            org.opencontainers.image.source=https://github.com/404404/HermesStatus
+            org.opencontainers.image.source=https://github.com/404404/HardwareStatus
             io.hermesstatus.component=client
           build-args: |
             VERSION=2.6
             VCS_REF=${{ steps.provenance.outputs.vcs_ref }}
             BUILD_DATE=${{ steps.provenance.outputs.build_date }}
-            SOURCE_URL=https://github.com/404404/HermesStatus
+            SOURCE_URL=https://github.com/404404/HardwareStatus

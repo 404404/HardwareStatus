@@ -2,7 +2,7 @@ ARG ALPINE_IMAGE=alpine:3.13
 ARG VERSION=2.5
 ARG VCS_REF=unknown
 ARG BUILD_DATE=unknown
-ARG SOURCE_URL=https://github.com/404404/HermesStatus
+ARG SOURCE_URL=https://github.com/404404/HardwareStatus
 ARG CATALOG_REVISION=486dacbcb8d0f14e5ee171ce99c6a5ffabc0fb62
 ARG CATALOG_SCHEMA_VERSION=1
 ARG CATALOG_SHA256=2251eddb656af89483a3497ca2fe46bf60339c3f96ae38b3390761d7f379a371
@@ -11,13 +11,13 @@ FROM ${ALPINE_IMAGE}
 ARG VERSION=2.5
 ARG VCS_REF=unknown
 ARG BUILD_DATE=unknown
-ARG SOURCE_URL=https://github.com/404404/HermesStatus
+ARG SOURCE_URL=https://github.com/404404/HardwareStatus
 ARG CATALOG_REVISION=486dacbcb8d0f14e5ee171ce99c6a5ffabc0fb62
 ARG CATALOG_SCHEMA_VERSION=1
 ARG CATALOG_SHA256=2251eddb656af89483a3497ca2fe46bf60339c3f96ae38b3390761d7f379a371
 
-LABEL org.opencontainers.image.title="HermesStatus Client" \
-    org.opencontainers.image.description="HermesStatus host and Hermes profile collector" \
+LABEL org.opencontainers.image.title="HardwareStatus Client" \
+    org.opencontainers.image.description="HardwareStatus host and Hermes profile collector" \
     org.opencontainers.image.version="${VERSION}" \
     org.opencontainers.image.revision="${VCS_REF}" \
     org.opencontainers.image.created="${BUILD_DATE}" \

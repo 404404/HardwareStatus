@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.example.invalid/hermesstatus/legacy-device-mapping.schema.json",
-  "title": "HermesStatus 2.2 explicit legacy identity mapping",
+  "title": "HardwareStatus explicit legacy identity mapping",
   "type": "object",
   "required": ["version", "mappings"],
   "properties": {

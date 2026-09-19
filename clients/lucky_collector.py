@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only Lucky adapter for the HermesStatus extension payload."""
+"""Read-only Lucky adapter for the HardwareStatus extension payload."""
 
 import datetime
 import hashlib

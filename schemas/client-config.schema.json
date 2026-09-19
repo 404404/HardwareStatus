@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "HermesStatus unified Client configuration",
+  "title": "HardwareStatus unified Client configuration",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "server", "device", "collectors"],

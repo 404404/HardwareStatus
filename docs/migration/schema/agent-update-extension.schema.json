@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/404404/HermesStatus/schemas/agent-update-extension.schema.json",
-  "title": "HermesStatus agent update extension",
-  "description": "Only the HermesStatus extension merged into a native ServerStatus agent update. Native AgentStats fields are intentionally omitted.",
+  "$id": "https://github.com/404404/HardwareStatus/schemas/agent-update-extension.schema.json",
+  "title": "HardwareStatus agent update extension",
+  "description": "Only the HardwareStatus extension merged into a native ServerStatus agent update. Native AgentStats fields are intentionally omitted.",
   "$comment": "additionalProperties is false at every contract object boundary so unknown upstream fields and secret-bearing configuration cannot be passed through by accident.",
   "type": "object",
   "required": [

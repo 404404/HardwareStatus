@@ -1,48 +1,67 @@
 # 架构
 
-HermesStatus 是一个小型、只读的监控系统。Client 采集受限的主机观测并发送给 Server；Server 校验、持久化已接受状态；Web UI 只读取 Server 的统一统计投影。
+HardwareStatus 是一个只有一份浏览器权威投影的只读监控系统。公开仓库已更名为
+HardwareStatus；现有 `hermesstatus` 运行时命名空间仍是兼容边界。
 
 ```text
-主机观测 -> Client -> Device v2 HTTPS -> Server -> /json/stats.json -> Web UI
+已授权的主机输入 → Python Client → Device v2 HTTPS → Go Server
+                                                   ↓
+                                         已接受的持久化状态
+                                                   ↓
+                         /json/stats.json → Web UI 与组件诊断页
 ```
 
-## 设备身份与数据流
+## 身份、接收与持久化
 
-Device Registry 是 `device_id`、`display_name`、启用状态与协议的权威来源。Client 上报的 hostname 只是观测数据，不能重命名 Registry 设备。Device v2 使用每设备凭据摘要、TLS、重放/冲突检查及 Server 权威生命周期状态。已显式配置的 Legacy 上报仍兼容。
+Device Registry 是 `device_id`、`display_name`、启用状态和协议的权威来源。上报的
+hostname 只是观测值，不能重命名 Registry 设备。Device v2 使用 TLS、服务端仅保存
+digest 的每设备凭据、重放/冲突检查和服务端生命周期时钟；Legacy TCP 只在显式配置时
+保留。
 
-已接受更新以原子方式写入；过期、冲突或无效上报不会覆盖最后一次已接受状态。Server 重启后恢复的数据在收到新的已接受上报前始终为 stale。
+已接受的更新是原子的。非法、过期、冲突或未授权上报不会覆盖最后一次已接受状态。Server
+重启恢复的状态可供诊断，但在下一次自然上报被接受前保持 stale。
 
-## 监控域
+## 单一投影与独立域
 
-当前投影包含相互独立的只读域：
+Server 校验 Client extension 后生成所有页面共用的 stats 文档；浏览器不拼接原始 Client
+数据，也不单独轮询采集器。当前域包括硬件/OS、Docker、Hermes、Lucky、EasyTier 和已配置
+的 UniFi target。
 
-- 硬件与操作系统；
-- Docker；
-- 已安装时的 Hermes Agent Profiles；
-- Lucky；
-- EasyTier；
-- 显式配置 Client-side profile 时的 UniFi target。
+以下信号必须分开解释：
 
-域可独立处于 fresh、partial、degraded、unavailable 或 not_configured，不会让无关域变为失败。可选 Hermes Agent 的 `not_installed`，或可用的 SMART 属性回退，均不会单独使设备离线或不健康。
+| 信号 | 含义 |
+| --- | --- |
+| 设备生命周期 | 认证后的 Client 是否按 Server 时钟在线。 |
+| freshness | 某个观测是否仍在该采集策略的有效时间内。 |
+| 采集质量 | 采集器完成、部分成功、不可用、禁用或未配置。 |
+| 硬件/业务健康 | 对磁盘、服务、路由或远端 target 的健康解释。 |
+| 诊断 | 解释当前错误或限制的有界、资源级证据。 |
 
-硬件将物理磁盘与卷/文件系统分开，RAID、device-mapper 与 DSM 卷无需伪造为某一块物理盘的附属物。
+采集成功不等于硬件健康。反之，未配置的可选组件、合法空集合或可信 SMART 属性回退不会
+让设备离线。
 
-## 信任边界
+## 组件诊断
 
-Collector 使用固定 allowlist 与解析器，不提供远程 shell、任意命令执行、配置编辑或控制平面。敏感原始对象、凭据、私有端点和 EasyTier 配置不会持久化或展示。Web UI 安全渲染非信任字符串，并在所有页面共享一个 stats 文档/fetch 路径。
+诊断与 freshness 在同一投影时刻生成。它保留严格解码/校验证据，并加入当前域证据；后续
+有效观测解决问题时，当前诊断会清除。每项诊断具有稳定的 domain、component、code、可选
+field/source/reason 与受影响资源身份，因此不同磁盘、文件系统、profile 或 API endpoint 的
+相同错误不会被错误合并。
 
-## EasyTier 模型
+列表保持有界。Server 同时记录 observed/displayed 数量与截断标记，并优先保留故障证据；UI
+显示数量不能被理解为观测总数。
 
-EasyTier 仅用于监控。Client 使用配置好的 loopback RPC 与固定只读 CLI，绝不管理 connector、route、credential、端口转发、日志或服务重启。`supported`、`present` 与 `observed` 是不同概念，不能由 0 RPM、缺失设备或缺失 peer 推断。
+## UniFi 权威边界
 
-无远端 peer 时，Direct、Relay 与 IPv6-UDP-Direct 为 `not_observable`，而不是 false 或 0。部分 EasyTier 2.6.4 输出会在 peer 列表中包含本机节点；Client 使用 own-peer-ID 或 `Local` 标记将该行严格排除。明细保留有界显示数、观察总数与截断标记，不会把展示上限当成拓扑总数。
+Client 仅通过显式 profile 选择固定只读 SSH/API source。profile 选择采集来源，并非硬件
+身份。API/SSH 运行时身份必须匹配 `clients/unifi_catalog/` 固定 bundle 中的 verified alias，
+才会投影端口、PoE、存储、电源或处理器静态事实。未知或候选 alias 仍可保留有界运行时
+观测，但绝不会获得推测的静态能力。
+
+静态端口数据只可按 `(device_id, port_idx)` 与运行时观测关联。WAN、uplink、风扇、存储和
+电源观测必须依附于经过验证的设备/接口身份，不能跨设备泄漏。
 
 ## 明确不在范围内
 
-HermesStatus 不是 EasyTier 管理器、远程执行服务、告警系统、时序数据库、拓扑编辑器，也不是通用网络流量或运营商探测产品。
-
-## UniFi 机型 Profile
-
-UniFi V1 是远端观测域，不是第二套 Client 身份或控制通道。Device v2 Client 每个采集周期只执行一次有界、固定的 OpenSSH session，并且仅规范化 symbolic source：`ubnt-systool cputemp`、聚合 `/proc/stat`、选定的 `/proc/meminfo`、`/proc/uptime` 与 `/proc/loadavg`。Server 只接收有界的遥测投影。
-
-profile 由管理员显式选择并 fail-closed，但只包含有界采集 source 和 formula，不能建立硬件 identity 或静态能力。UDW 与 UCG Max 共用 Generic Collector，硬件差异由 runtime identity 通过冻结 Catalog 的 verified alias 后投影。`supported`、`present`、`observed` 必须分离：0 RPM、未观察到的块设备或可选诊断源均不能推断物理故障。UniFi 传输失败只会使 UniFi target stale，不能修改 Device v2 身份，也不能使采集主机离线。
+HardwareStatus 不是远程 shell、EasyTier/UniFi/Lucky 管理器、自动注册服务、网络扫描器、
+告警系统、时序数据库或任意命令/路径执行器。Server 不读取 Docker socket、采集器秘密、
+原始 Client 配置或原始远端响应。

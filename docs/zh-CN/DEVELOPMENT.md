@@ -1,25 +1,47 @@
 # 开发
 
-从当前远端基线创建聚焦的 `codex/*` 分支。先读取远端状态，保留无关工作区变更，避免对已评审分支 rebase 或 force-push。使用小而可评审的 commit，在受保护分支合并前创建 Draft PR。只有用户明确授权才能更新 `2.0`。
+基于 [404404/HardwareStatus](https://github.com/404404/HardwareStatus) 的当前 `2.0`
+主线开发。源码中仍保留多个 `hermesstatus` 兼容名称；不能仅因仓库改名而重命名运行时接口。
+
+## 变更原则
+
+从干净 worktree 和最新远端基线开始。保持 Client → Device v2 → Server → 单一 stats 投影 →
+UI 的数据路径。新增 wire field 必须同时检查 Client 校验、Server decode/model、persistence、
+API/schema、UI、测试和回滚行为。
+
+优先使用固定时钟、合成计数器和脱敏 fixture。不得通过接受未知字段、弱化 TLS/SSH、隐藏真实
+故障或填充虚假 telemetry 让测试通过。
 
 ## 必要检查
 
-推送前按适用范围执行：
+先跑针对性回归，再跑受影响 suite：
 
-```bash
+```sh
+(cd clients && python3 -m unittest discover)
+(cd scripts/tests && python3 -m unittest discover)
+(cd server && go test ./...)
+(cd server && go test -race ./...)
+(cd server && go vet ./...)
+(cd server && go build ./...)
+node --test web/js/app.test.js
+python3 scripts/validate_migration_contracts.py
+python3 scripts/check_release_boundaries.py
+python3 scripts/check_unifi_static_authority.py
 git diff --check
-python3 -m unittest discover -s clients/tests
-python3 -m unittest discover -s scripts/tests
-go test ./...
-go test -race ./...
-go vet ./...
-go build ./...
-node --test web/js
-docker compose config --quiet
 ```
 
-同时运行仓库的合同、release-boundary 与 secret 检查。不得通过削弱校验器、跳过失败测试或修改分支保护来获得绿色结果。
+纯文档变更只运行相关检查；candidate 或 release 变更必须完整通过必要 gate。
 
-## Review 与发布
+## Candidate 与 review
 
-修复有效的安全、数据完整性、身份、持久化、兼容性与 XSS 问题。Review 修复后需重新构建最终镜像；候选或生产部署必须使用最终已评审 commit，而不是早期候选。受控部署 helper 除非其源码被有意纳入评审，否则应与产品源码分离。
+向 `codex/` 任务分支提交可审查差异并创建 Draft PR。完整 review 应覆盖 data contract、资源
+归属、当前诊断、bounds/truncation、凭据暴露和 image provenance。候选只能由 GitHub CI 构建；
+记录 source SHA、Server digest、Client digest、platform，以及适用时的 Catalog revision/hash。
+
+资格验证后任何源码变更都会产生新 candidate 并使旧资格失效。实机证据必须与 offline/CI 证据
+分开记录；不能把 fixture 通过描述为 GK50 或 RS820 结果。
+
+## 文档
+
+行为或公开术语变化时同步更新中英文。项目名称是 HardwareStatus；已有运行时名称和 GHCR 包名
+在有明确迁移计划前仍是兼容契约。

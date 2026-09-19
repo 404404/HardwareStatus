@@ -14,7 +14,7 @@ permissions:
 env:
   IMAGE_REGISTRY: ghcr.io
   IMAGE_NAMESPACE: ${{ github.repository_owner }}
-  IMAGE_SOURCE: https://github.com/404404/HermesStatus
+  IMAGE_SOURCE: https://github.com/404404/HardwareStatus
   PRODUCT_VERSION: "2.6"
 
 jobs:
@@ -177,8 +177,8 @@ jobs:
           tags: ${{ steps.server_meta.outputs.tags }}
           labels: |
             ${{ steps.server_meta.outputs.labels }}
-            org.opencontainers.image.title=HermesStatus Server
-            org.opencontainers.image.description=HermesStatus device status server
+            org.opencontainers.image.title=HardwareStatus Server
+            org.opencontainers.image.description=HardwareStatus device status server
             org.opencontainers.image.version=${{ steps.provenance.outputs.product_version }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.created=${{ steps.provenance.outputs.build_date }}
@@ -199,8 +199,8 @@ jobs:
           tags: ${{ steps.client_meta.outputs.tags }}
           labels: |
             ${{ steps.client_meta.outputs.labels }}
-            org.opencontainers.image.title=HermesStatus Client
-            org.opencontainers.image.description=HermesStatus host and Hermes profile collector
+            org.opencontainers.image.title=HardwareStatus Client
+            org.opencontainers.image.description=HardwareStatus host and Hermes profile collector
             org.opencontainers.image.version=${{ steps.provenance.outputs.product_version }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.created=${{ steps.provenance.outputs.build_date }}

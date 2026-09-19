@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "HermesStatus UniFi collection profile V1",
+  "title": "HardwareStatus UniFi collection profile V1",
   "type": "object",
   "required": [
     "schema_version",

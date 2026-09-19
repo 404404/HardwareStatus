@@ -1,100 +1,118 @@
-# HermesStatus
+# HardwareStatus
 
-[中文](README.md) · [English docs](docs/README.md) · [中文文档](docs/zh-CN/README.md)
+[中文](README.md) · [English docs](docs/README.md) · [中文文档](docs/zh-CN/README.md) · [GitHub](https://github.com/404404/HardwareStatus)
 
-HermesStatus is a self-hosted, multi-device status dashboard. The Python Client collects authorized host and local-service observations with least privilege; the Go Server validates, persists, and projects them; the browser renders Home, Hardware, Docker, Lucky, EasyTier, and UniFi from one `/json/stats.json` document.
+HardwareStatus is a self-hosted, multi-device, read-only status and hardware
+observability system. The Python Client collects explicitly authorized
+observations at the host boundary; the Go Server strictly validates, persists,
+and produces the single `/json/stats.json` projection; the browser renders
+host, hardware, Docker, Hermes, Lucky, EasyTier, UniFi, and component diagnostics
+from that projection.
 
-## Scope
+> **Naming compatibility:** the GitHub repository and public documentation are
+> named **HardwareStatus**. Existing runtime interfaces remain unchanged:
+> `serverstatus`, `HERMESSTATUS_*`, `/etc/hermesstatus`,
+> `/run/secrets/hermesstatus`, and the
+> `ghcr.io/404404/hermesstatus-server` / `hermesstatus-client` packages. They
+> are compatibility contracts for deployed installations, not strings to replace.
 
-- **Multi-device** — Device v2 uses an explicit Registry, per-device credential digest, and HTTPS ingestion. Registry `display_name` is the authoritative browser name; a Client hostname cannot replace it.
-- **Host and hardware** — CPU, memory, uptime, OS, disks, SMART, temperatures, power-on hours, filesystems, and volumes. Devices and filesystems are explicitly authorized; the Client never scans host `/` or the whole `/dev` tree.
-- **Docker** — read-only Docker-socket collection of bounded container summaries.
-- **Hermes** — Profile summaries when installed. `not_installed` is a usable optional state, not a device failure.
-- **Lucky** — loopback-only, read-only HTTP(S) collection of version, DDNS, web services, port forwards, and certificate summaries. Tokens are read only from protected files.
-- **EasyTier** — read-only CLI and loopback RPC collection of node, peer, route, connector, traffic, and configured-vs-observed state. No remote peers, unobserved direct/relay paths, and unconfigured optional capabilities are not failures.
-- **UniFi (2.5)** — explicit-profile, read-only SSH telemetry. V1 supports UDW and UCG Max generic CPU, memory, temperature, uptime and load observations plus evidence-backed fan, PSU and storage capability semantics. Optional local controller API data uses file-backed `X-API-Key` and certificate-pin validation.
+## Capabilities and boundaries
 
-Network throughput, carrier probing, EasyTier management, remote command execution, auto-registration, history storage, and alerting are out of scope.
+- **Device identity** — Device v2 uses a Registry, per-device token digest,
+  TLS, replay/conflict checks, and a Server lifecycle clock. Registry
+  `display_name` is authoritative for the UI.
+- **Host and hardware** — CPU, memory, operating system, filesystems, physical
+  disks, SMART, temperatures, and bounded container summaries. Every disk and
+  mountpoint is explicitly authorized; the Client never scans host `/` or the
+  complete `/dev` tree.
+- **Optional local components** — Hermes, Lucky, and EasyTier use fixed,
+  read-only inputs. Not-installed, not-configured, and valid empty observations
+  are distinct from collection failures.
+- **UniFi** — the Client uses fixed read-only SSH/API inputs for configured
+  targets. After verified runtime identity, static ports, PoE, storage, power,
+  and processor capabilities come only from the frozen UniFi Catalog. Unknown
+  identity never gains inferred static capability.
+- **Component diagnostics** — the Server separates current freshness,
+  collection quality, hardware health, field/resource errors, and bounded
+  truncation. The Diagnostics tab explains Server-received state; it neither
+  triggers collection nor controls a component.
 
-## UniFi 2.5 boundary
+There is no remote command execution, network scanning, automatic registration,
+device management, fan/PWM control, alerting service, time-series database, or
+arbitrary command/path configuration.
 
-UniFi targets are explicitly selected by profile (`udw` or `ucg-max`). SSH uses
-fixed read-only commands, strict `known_hosts` validation, and file-backed
-credentials. The optional local UniFi API uses `X-API-Key`; secrets never enter
-argv, environment values, logs, telemetry, or the UI. Remote target health is
-kept independent from the collector host's Device v2 health.
-
-2.5 includes basic operational status for gateway WAN interfaces (for example
-WAN1/WAN2) when available; device uplinks are excluded. Richer ISP/ASN,
-latest speed-test, and SLA/loss semantics have been identified in local
-controller APIs but remain a planned 2.6 HermesStatus projection enhancement;
-this is an integration limitation, not an absence of UniFi APIs.
-
-## Architecture
+## Data flow
 
 ```text
 authorized host inputs / Docker / Hermes / Lucky / EasyTier / UniFi
-                         ↓
-                  Python Client
-                         ↓
-      Device v2 HTTPS or compatible Legacy TCP transport
-                         ↓
-                     Go Server
-                         ↓
-        /json/stats.json · /api/health · Web UI
+                                ↓
+                         Python Client
+                                ↓
+                Device v2 HTTPS (or explicit Legacy TCP)
+                                ↓
+                           Go Server
+                                ↓
+          /json/stats.json · /api/health · Web UI
 ```
 
-The Server never reads a Docker socket, Lucky credential, EasyTier configuration, or raw CLI output. Inputs are allowlisted, bounded, typed, and secret-filtered at the Client boundary; the Server accepts only strict projections.
+The Server never reads a Docker socket, Client raw configuration, credentials,
+raw EasyTier output, or raw UniFi responses. The Client applies fixed
+allowlists, bounds, type checks, and secret filtering; the Server accepts only
+strict normalized projections.
 
-## Quick start
+## Deployment principle
 
-Server and Client have separate Compose configuration. Never commit production configuration, tokens, passwords, private CA material, or private addresses.
+Production and qualification use GitHub-CI-built immutable image references:
 
-```bash
-docker compose --env-file /secure/path/server.env -f docker-compose-server.yml up -d --build
-docker compose --env-file /secure/path/client.env -f docker-compose-client.yml up -d --build
+```yaml
+image: ghcr.io/404404/hermesstatus-server@sha256:<approved-server-digest>
+image: ghcr.io/404404/hermesstatus-client@sha256:<client-digest-from-the-same-source-revision>
 ```
 
-The default Web address is `http://127.0.0.1:8080/`; the status document is `/json/stats.json` and health is `/api/health`. Put production Device v2 only behind a fixed HTTPS reverse-proxy route and validate configuration before startup:
+Do not substitute `latest`, a broad version tag, or local `--build` for an
+approved digest. Before deployment verify that:
 
-```bash
-serverstatus --validate-device-config \
-  --device-registry /absolute/path/devices.json \
-  --device-credentials /absolute/path/credentials.d \
-  --legacy-device-mapping /absolute/path/legacy-device-mapping.json
-```
+1. Server and Client OCI revisions match each other and the intended source
+   SHA; the Client Catalog revision and bundle SHA match the candidate record.
+2. Server configuration, Registry, credential references, and persistent state
+   (including its `~` backup) have private, checksummed backups.
+3. The Server is updated first. For each Device v2 identity, stop the old
+   Client, confirm no writer remains, then start the new Client. Old and new
+   Clients must never share an identity/token concurrently.
 
-Use `/home/hermes/status/config/client-config.json` on GK50/Linux or
-`/volume1/docker/status/config/client-config.json` on Synology, mounted read-only
-as `/run/secrets/hermesstatus/client-config.json`. Keep the Device v2 token as
-the separate read-only `/run/secrets/hermesstatus-device-token` mount. The
-Synology candidate template and stop-before-start rollback procedure are in
-[`deploy/compose/README.md`](deploy/compose/README.md) and
-[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+See the [deployment guide](docs/DEPLOYMENT.md) for Compose, verification, and
+rollback. The default web address is `http://127.0.0.1:8080/`; health is
+`/api/health`; the stats projection is `/json/stats.json`.
 
 ## Least-privilege hardware collection
 
-Do not use `privileged`, `SYS_ADMIN`, all of `/dev`, or the host root directory for SMART or filesystem observation. Map each confirmed disk read-only, for example:
+Do not use `privileged`, `SYS_ADMIN`, all of `/dev`, or the host root. Map only
+confirmed read-only devices and probe roots, for example:
 
 ```yaml
 cap_add: [SYS_RAWIO]
 devices: [/dev/sda:/dev/sda:r]
-environment:
-  SMART_DEVICE: /dev/sda
 ```
 
-Use `hardware.smart_devices` for multi-disk allowlists and `hardware.filesystem_probes` for fixed read-only filesystem probe paths. See the [Device configuration guide](docs/DEVICE_CONFIGURATION.md) and [hardware design](docs/design/HARDWARE_MONITORING.md).
+Use the unified Client `collectors.smart.devices` allowlist for multiple disks,
+and fixed `collectors.filesystem.probes` with read-only bind mounts for
+filesystems. See the [Device v2 guide](docs/DEVICE_CONFIGURATION.md) and
+[hardware-monitoring design](docs/design/HARDWARE_MONITORING.md).
 
-## Known limitation
-
-Some EasyTier 2.6.4 CLI output includes the local node in the peer list. Remote-peer summaries strictly exclude that row by own peer ID. Raw connection output can still vary by version and must not be over-interpreted as topology truth.
-
-## Documentation and validation
+## Documentation and checks
 
 - [Architecture](docs/ARCHITECTURE.md) · [Configuration](docs/CONFIGURATION.md) · [Deployment](docs/DEPLOYMENT.md)
 - [Security](docs/SECURITY.md) · [Operations](docs/OPERATIONS.md) · [Development](docs/DEVELOPMENT.md)
-- [Device configuration guide](docs/DEVICE_CONFIGURATION.md)
-- [EasyTier monitoring](docs/design/EASYTIER_MONITORING.md) · [Hardware monitoring](docs/design/HARDWARE_MONITORING.md) · [UniFi monitoring](docs/design/UNIFI_MONITORING.md)
+- [Device v2 configuration](docs/DEVICE_CONFIGURATION.md) · [Unified Client configuration](docs/UNIFIED_CLIENT_CONFIG.md)
+- [EasyTier](docs/design/EASYTIER_MONITORING.md) · [Hardware](docs/design/HARDWARE_MONITORING.md) · [UniFi](docs/design/UNIFI_MONITORING.md)
+
+```bash
+(cd server && go test ./...)
+(cd clients && python3 -m unittest discover)
+(cd scripts/tests && python3 -m unittest discover)
+node --test web/js/app.test.js
+docker compose -f docker-compose-client.yml config --quiet
+```
 
 ## License
 

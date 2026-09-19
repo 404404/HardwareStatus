@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Provision one HermesStatus device credential without network access."""
+"""Provision one HardwareStatus device credential without network access."""
 
 from __future__ import annotations
 
@@ -66,7 +66,7 @@ class ProvisionArguments:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Create an offline HermesStatus device token and digest record.",
+        description="Create an offline HardwareStatus device token and digest record.",
     )
     parser.add_argument("device_id")
     parser.add_argument("--client-token-file", required=True)

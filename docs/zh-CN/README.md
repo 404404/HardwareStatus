@@ -1,20 +1,25 @@
-# HermesStatus 文档
+# HardwareStatus 文档
 
-[English](../README.md)
+[English documentation](../README.md) · [仓库](https://github.com/404404/HardwareStatus)
 
-本文档集以当前 `2.5` 开发线为准，说明已部署行为、严格信任边界、候选部署和已知限制；候选流程不会自行提升 Stable 2.3。
+本文档描述 `2.0` 当前主线：包含已发布的 2.7 功能以及 PR #37 合入的第一轮采集诊断
+改进。它们说明当前源码行为，不代表新的稳定版发布，也不能替代候选镜像 provenance
+要求。
 
-| 文档 | 用途 |
+仓库公开名称为 HardwareStatus。为保证现有部署兼容，所有以 `hermesstatus` 开头的运行时
+名称仍保持不变，详见根目录 [README](../../README.md)。
+
+| 文档 | 内容 |
 | --- | --- |
-| [架构](ARCHITECTURE.md) | 组件、数据流、职责边界与产品范围。 |
-| [配置](CONFIGURATION.md) | Server、Client、Device v2、硬件、Lucky 与 EasyTier 设置。 |
-| [设备配置指南](DEVICE_CONFIGURATION.md) | Registry 身份、凭据文件、Client 配置与安全挂载。 |
-| [部署](DEPLOYMENT.md) | Compose 部署、升级、验证与回滚。 |
-| [安全](SECURITY.md) | 信任边界、凭据、传输与最小权限。 |
-| [运维](OPERATIONS.md) | 新鲜度、健康语义、备份与排障。 |
-| [开发](DEVELOPMENT.md) | 测试门禁与 PR 流程。 |
-| [EasyTier 监控](EASYTIER_MONITORING.md) | 只读模型、数据边界与状态语义。 |
-| [硬件监控](HARDWARE_MONITORING.md) | SMART、文件系统、存储拓扑与诊断语义。 |
-| [UniFi 监控](UNIFI_MONITORING.md) | 已验证 UniFi Console 机型的 profile 驱动只读 SSH 遥测。 |
+| [架构](ARCHITECTURE.md) | 组件、单一投影数据流、身份、诊断与边界。 |
+| [配置](CONFIGURATION.md) | Server、Device v2、统一 Client、可选采集器与兼容名称。 |
+| [设备配置](DEVICE_CONFIGURATION.md) | Registry 身份、凭据文件、严格配置与已审核挂载。 |
+| [部署](DEPLOYMENT.md) | 不可变镜像、升级顺序、验证、持久化与回滚。 |
+| [安全](SECURITY.md) | 信任边界、秘密、TLS/SSH 与最小权限。 |
+| [运维](OPERATIONS.md) | freshness、诊断、备份恢复与排障。 |
+| [开发](DEVELOPMENT.md) | 检查、文档要求与 PR 流程。 |
+| [EasyTier 设计](EASYTIER_MONITORING.md) | 只读采集、汇总/展示上限与不确定性。 |
+| [硬件设计](HARDWARE_MONITORING.md) | SMART、文件系统、资源诊断与安全回退。 |
+| [UniFi 设计](UNIFI_MONITORING.md) | Catalog 权威性、运行时身份、WAN/端口归属与只读传输。 |
 
-英文和中文文档必须在同一次文档变更中保持语义一致。
+同一次文档更新中应保持中英文语义同步。

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/404404/HermesStatus/schemas/easytier-extension.schema.json",
-  "title": "HermesStatus EasyTier monitoring extension",
+  "$id": "https://github.com/404404/HardwareStatus/schemas/easytier-extension.schema.json",
+  "title": "HardwareStatus EasyTier monitoring extension",
   "$comment": "Strict read-only monitoring projection. Configuration, RPC portals, credentials, raw command output and stderr are deliberately absent. Bounded connector and listener endpoints are retained only after credential/query stripping.",
   "type": "object",
   "required": ["status", "source", "node", "peers", "routes", "connectors", "traffic", "command_status", "updated_at", "stale", "error"],

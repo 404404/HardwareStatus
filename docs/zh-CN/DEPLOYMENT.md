@@ -1,30 +1,57 @@
 # 部署
 
-从已评审的不可变 revision 部署 Server 与 Client。变更服务前记录完整 Git revision、镜像 digest、OCI revision label、Compose project、端口、挂载、状态路径与重启次数。
+只能部署已记录 candidate 的 GitHub CI 不可变镜像。仓库已更名，但当前已发布包名仍特意保留
+`hermesstatus-server` 与 `hermesstatus-client`。
 
-## 标准流程
+```yaml
+image: ghcr.io/404404/hermesstatus-server@sha256:<已批准的-server-digest>
+image: ghcr.io/404404/hermesstatus-client@sha256:<已批准的-client-digest>
+```
 
-1. 校验 Server Registry/凭据与 Client 配置。
-2. 构建或拉取来自同一 revision 的精确 Server/Client 镜像。
-3. 备份状态与非秘密部署配置。
-4. 只重建受影响服务。
-5. 校验 health、重启次数、镜像 digest/revision 与已接受的 Device v2 上报。
-6. 校验 `/health`、`/json/stats.json` 与相关页面。
+不得改用 `latest`、宽泛版本 tag 或本地 build。任何变更前，确认每个 image 的 OCI revision
+等于已批准源码 SHA；含 UniFi 的 Client 还须核对 candidate 记录中的 Catalog revision 与 bundle
+hash。
 
-不能以可变 tag 作为资格验证证据。运行容器的 OCI revision label 与 digest 必须匹配目标 revision。
+## 准备回滚集合
 
-## Device v2 部署
+记录当前 Server/Client digest、Compose/配置 revision、mount、network/PID/security option 和
+Device v2 identity。避开并发写入，私有地备份并校验 Server 状态文件及其 `~` 备份。旧 image
+和配置要保留到 candidate 被接受之后。
 
-Client 必须使用固定 JSON 配置和 Device token/CA 的只读挂载。不要向 Device v2 Client 注入 Legacy 的 `SERVER`、`PORT`、用户名或密码变量。preflight 失败不得修改容器；重建前必须保留精确 rollback target。
+资格环境与生产环境不得共享可写 Server state。保持既有只读 mount、tmpfs、设备 mapping、
+TLS/SSH 材料和单 writer 身份约束。
 
-## 共存与回滚
+## 标准顺序
 
-不同部署须通过 Compose project、容器、网络、状态、配置与凭据隔离。资格验证另一部署时，不得停止或重建无关稳定服务。真实 post-deploy 失败时，只能回滚到重建前记录的精确状态，不能在回滚中删除持久卷。
+1. 不启动容器，先验证渲染后的 Compose。
+2. 仅用已批准 image 更新/重建 Server；在旧 Client 仍是唯一 writer 时核对 digest/revision、
+   health、dashboard 和 stats。
+3. 停止某个 Device v2 identity 的旧 Client，确认该 identity 已无 writer。
+4. 仅以匹配的不可变 image 重建该 Client，确认 digest/revision、`restart_count=0` 和唯一 writer。
+5. 观察自然 Client report；浏览器刷新或读取 Server 不能算采集周期。核对 online/non-stale、
+   已启用组件 freshness 和资源级诊断。
 
-## 部署后验证
+进行受控 Server restart 时，恢复状态在下一次自然 report 被接受前必须显示 stale。不要在实机
+上人为制造故障来覆盖某条诊断分支。
 
-确认成功上报会变为 fresh，恢复状态在下一次已接受上报前为 stale，浏览器仍经现有 stats 文档读取数据。确认日志、进程参数、环境输出、stats 投影与 UI 均不包含 secret。
+## Synology DSM
 
-## UniFi target 部署
+DSM 通常只需要 Client image。操作员在保留当前配置与状态后，只改既有 Compose service 的
+image 引用。保持 host network/PID、只读 rootfs、有界 tmpfs、已审核设备 mapping 和受保护的
+token/配置 mount。旧/新 Client 绝不能同时使用同一个 Device v2 token。
 
-UniFi 只能通过已评审的 Device v2 JSON 配置和两个固定只读 secret 挂载启用：credential 文件与专用 `known_hosts` 文件。重建 Client 前必须校验两者的文件类型、owner 与权限。镜像可以包含 profile 库，但不得包含站点相关凭据、host key、target 或原始 discovery 输出。部署后应将 UniFi 与主机健康分开验证：profile 选择、传输状态、时间戳推进和 stale/error 展示才是预期证据；远端 target 失败不能通过扩大 Docker 权限或重建远端 console 来“修复”。
+`deploy/compose/` 模板是经过审核的起点，不能作为扩大 mount 或权限的理由。
+
+## 回滚
+
+回滚是一套有版本关联的材料，不只是停止新 Client：
+
+1. 停止新 Client，并确认 identity 没有 writer。
+2. 停止新 Server。
+3. 恢复匹配的旧 Server/Client image、Compose/配置和升级前 state 及其 `~` 备份。
+4. 验证 Compose，先启动旧 Server，再启动匹配的旧 Client。
+5. 核对唯一 writer、fresh accepted report 和预期诊断。
+
+状态格式仍使用 `version: 2`，但该字符串不是降级兼容承诺。2.7 之后首次写入的 collection-
+diagnostics 状态不是 exact pre-change 2.7 Server 的已资格验证输入。不得清空 persistence 或
+replay protection 强行降级；必须使用已捕获的升级前 state。

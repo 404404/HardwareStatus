@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/404404/HermesStatus/schemas/unifi-extension.schema.json",
-  "title": "HermesStatus UniFi telemetry extension",
+  "$id": "https://github.com/404404/HardwareStatus/schemas/unifi-extension.schema.json",
+  "title": "HardwareStatus UniFi telemetry extension",
   "$comment": "Strict profile-selected read-only telemetry. SSH credentials, commands, host keys, raw shell output, vendor configuration, and arbitrary diagnostic keys are deliberately absent.",
   "type": "object",
   "required": [

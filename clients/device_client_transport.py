@@ -1,4 +1,4 @@
-"""Shared fixed HermesStatus device_v2 HTTPS transport and retry runtime."""
+"""Shared fixed HardwareStatus device_v2 HTTPS transport and retry runtime."""
 
 from __future__ import annotations
 

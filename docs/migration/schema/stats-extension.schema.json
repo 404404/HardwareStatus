@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/404404/HermesStatus/schemas/stats-extension.schema.json",
-  "title": "HermesStatus stats extension",
-  "description": "Only the HermesStatus extension emitted for one ServerStatus node. Native stats fields are intentionally omitted.",
+  "$id": "https://github.com/404404/HardwareStatus/schemas/stats-extension.schema.json",
+  "title": "HardwareStatus stats extension",
+  "description": "Only the HardwareStatus extension emitted for one ServerStatus node. Native stats fields are intentionally omitted.",
   "$comment": "This schema reuses the agent extension domain definitions. additionalProperties is false so stats cannot expose unknown collector fields or secrets.",
   "type": "object",
   "required": [

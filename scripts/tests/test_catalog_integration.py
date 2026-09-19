@@ -34,11 +34,11 @@ def client_config():
     return {
         "Entrypoint": ["/app/entrypoint.sh"],
         "Labels": {
-            "org.opencontainers.image.title": "HermesStatus Client",
+            "org.opencontainers.image.title": "HardwareStatus Client",
             "org.opencontainers.image.version": "2.7",
             "org.opencontainers.image.revision": REVISION,
             "org.opencontainers.image.created": CREATED,
-            "org.opencontainers.image.source": "https://github.com/404404/HermesStatus",
+            "org.opencontainers.image.source": "https://github.com/404404/HardwareStatus",
             "org.opencontainers.image.licenses": "MIT",
             "io.hermesstatus.component": "client",
             "io.hermesstatus.unifi.catalog.revision": CATALOG_REVISION,
@@ -59,7 +59,7 @@ def client_config():
 def server_config():
     config = copy.deepcopy(client_config())
     config["Entrypoint"] = ["/usr/local/bin/serverstatus"]
-    config["Labels"]["org.opencontainers.image.title"] = "HermesStatus Server"
+    config["Labels"]["org.opencontainers.image.title"] = "HardwareStatus Server"
     config["Labels"]["io.hermesstatus.component"] = "server"
     for key in tuple(config["Labels"]):
         if key.startswith("io.hermesstatus.unifi.catalog."):

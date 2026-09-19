@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.example.invalid/hermesstatus/persistence-v2.schema.json",
-  "title": "HermesStatus 2.2 versioned persistence snapshot",
+  "title": "HardwareStatus versioned persistence snapshot",
   "type": "object",
   "required": ["version", "generated_at", "devices", "orphaned_devices"],
   "properties": {

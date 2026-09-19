@@ -1,43 +1,42 @@
-# EasyTier Monitoring Design
+# EasyTier monitoring design
 
-EasyTier support is a read-only Client domain. It collects a bounded projection
-of node, peer, route, connector and traffic information through a fixed local
-CLI and loopback RPC. It never manages EasyTier.
+EasyTier is a read-only Client domain. It obtains a bounded projection of node,
+peer, route, connector, and traffic state through a fixed local CLI and a
+fixed loopback RPC policy. It never manages EasyTier.
 
-## Data model
+## Evidence and failure semantics
 
-The Server stores only validated, whitelisted fields. Node information,
-collection status, peers, routes, connectors, traffic and optional configured
-expectations are separate. Raw configuration, endpoint addresses, credentials,
-keys and arbitrary feature objects are excluded.
+Each fixed command records its own collection time, duration, status, and last
+successful collection. A failed cycle does not replace previously collected
+command evidence with an invented empty payload. Timeout, CLI execution,
+RPC-unavailable, and parse failures remain distinct diagnostics.
 
-Peer path is `direct` only with direct connection evidence and matching target /
-next-hop IDs; it is `relayed` only with differing IDs; otherwise it is
-`unknown`. Transport and address family are independent enumerations. With no
-remote peers, Direct, Relay and IPv6 UDP Direct are `not_observable`.
+`last_success_at` means the last successful command result; it does not move to
+the current attempt time on a failure. Current data is fresh only after an
+accepted Client report under the Server clock.
 
-An expectation is an operator diagnostic, not device identity. It may compare
-network, overlay address, proxy CIDRs and administrative role. It cannot select
-credentials, authenticate a device or auto-register anything.
+## Aggregates, display bounds, and uncertainty
 
-## Collection semantics
+The Client filters the local peer by its own peer ID. Aggregates such as total,
+direct, relay, unknown path, and IPv6 UDP direct are computed from the full
+validated observation set, not merely the rows retained for display. Display
+lists are bounded independently: peers, routes, connectors, and traffic-by-
+instance rows are limited to 16; traffic samples are limited to 64.
 
-Each fixed command reports its own status and time. A partial command failure
-does not fabricate an empty list: it keeps last known data where available or
-marks the particular data unavailable. The domain is fresh only after an
-accepted report under the Server clock. An unknown schema/version is reported
-as unsupported rather than passed through raw.
+For every bounded list, `total`, `displayed_total`, and `truncated` preserve
+the distinction between observed and rendered data. Order changes must not
+change aggregate conclusions. IPv6 UDP direct is true only with positive direct
+IPv6/UDP evidence, false only when the relevant observation is conclusive, and
+null/not observable when evidence is insufficient.
+
+Traffic baselines are tied to the observed network and instance identity.
+Network/instance change, known restart, counter reset, or an excessive sampling
+gap starts a new baseline rather than reporting a misleading instantaneous rate.
 
 ## Safety boundary
 
 The runtime allowlist contains read-only queries only. It excludes connector,
-route, credential, whitelist, port-forward, logger and service lifecycle
-commands. RPC is loopback-only. The UI reads the existing stats document and
-does not create an EasyTier control endpoint.
-
-## Current limitation
-
-Some EasyTier 2.6.4 output can include the local node in a peer-list response.
-Normalization strictly excludes the row whose peer ID matches the local node
-from remote-peer summaries. Other version-specific raw connection details
-remain insufficient on their own to establish topology truth.
+route, credential, whitelist, port-forward, logging, and service-lifecycle
+commands. Raw configuration, endpoint secrets, credentials, and arbitrary
+feature objects are not projected. The UI reads the existing stats document and
+does not create a control endpoint.

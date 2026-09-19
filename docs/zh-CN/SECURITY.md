@@ -1,27 +1,35 @@
 # 安全
 
-HermesStatus 被设计为只读。安全模型基于显式身份、窄范围采集 allowlist、各边界校验和最小权限部署。
+HardwareStatus 被设计为只读。仓库更名不改变已部署环境的 `hermesstatus` 凭据路径、环境变量或
+镜像包名。
 
-## 身份与 secret
+## 身份与秘密
 
-Device v2 使用 TLS 和每设备 token。Server 只保存 token digest；Client 从 root-owned 只读文件读取 token 与 CA。不要记录、输出、为报告 hash、提交或放入命令行、环境变量值、fixture、stats 文档或 UI 的凭据。
+Device v2 使用 TLS 和每设备 token；Server 只保存其 digest。Client 从受保护的只读文件读取
+token、CA、Lucky token 和 UniFi 凭据。不得将任何 secret 放入源码、参数、环境变量、label、
+fixture、日志、状态文档、诊断 reason 或 UI。
 
-## 采集边界
+## 采集和远端边界
 
-Collector 使用固定 source allowlist 和 argv 数组，拒绝任意命令、远程 URL、redirect、原始配置、凭据和敏感 EasyTier 对象。Lucky 仅允许 loopback；EasyTier 仅允许配置的 loopback RPC 和只读 CLI 查询。运行时 allowlist 不含管理、凭据、路由、端口转发、日志或服务控制命令。
+Collector 使用固定 source allowlist 与 argv array，拒绝任意 command、path、host、redirect、
+原始配置、credential 和敏感 EasyTier 对象。Lucky 仅 loopback；EasyTier 使用固定只读 CLI 与
+loopback RPC；UniFi 使用固定打包的只读 source、严格 host-key checking、受保护的 keyboard-
+interactive credential 以及配置时的 API TLS pinning。
 
-## 主机权限
+任何 collector 都不安装 key、不扫描网络、不修改远端配置、不控制 fan/PWM、不改存储设置，也
+不暴露管理 endpoint。host-key 或 TLS verification 失败只是 telemetry error，绝不是弱化验证的
+授权。
 
-不要使用 privileged、`SYS_ADMIN`、Docker socket、整个 `/dev` 或主机根目录。只映射明确 SMART 设备，并在需要时授予 `SYS_RAWIO`。文件系统和 DSM probe 使用固定窄范围只读挂载。受控部署 helper 必须只提供固定子命令与路径，不能变成通用 `sudo`、Docker 或 shell 权限。
+## 最小权限与数据处理
 
-## 数据处理
+禁止 privileged container、`SYS_ADMIN`、宽泛 Docker API、完整 `/dev`、`/dev/sg*` 或 host root。
+仅授予已审核只读 mount、显式 SMART device mapping 和确有需要的 `SYS_RAWIO`。Server 严格限制
+count、string、counter、timestamp 和 enum，丢弃未知敏感字段，并原子应用已接受更新。
 
-Server 对 count、字符串、counter、timestamp、CIDR 与 enum 设定边界。未知敏感字段和 raw object 会被丢弃。HTML 使用安全转义，测试覆盖恶意值。持久化以原子方式应用已接受更新，并拒绝 stale/conflict mutation。
+诊断有界、资源级且经过 secret filter：保留足够 code/field/source 证据用于安全运维，但不会成为
+请求或配置转储。
 
 ## 漏洞报告
 
-不要在 issue 中包含 secret 或真实基础设施标识。请通过仓库的私有安全联系渠道或维护者渠道提交最小可复现、已脱敏的描述。
-
-## UniFi 远端观测边界
-
-UniFi V1 不提供通用 `run_remote(command)` 接口。profile 只能引用代码侧 symbolic source ID；Client 通过 argv 数组执行固定、打包的只读 SSH script，并使用有界 timeout、`setsid --wait`、keyboard-interactive 认证及 `StrictHostKeyChecking=yes`。password 仅由短生命周期的本地 askpass helper 从经校验的受保护文件读取；不会写入 argv、日志、stats、fixture、UI、镜像 label 或环境变量值。host-key 失败只是安全的遥测错误，绝不是接受替换 key 的理由。Client 不安装 key、不扫描网络、不修改 UniFi 配置、不读取配置数据库，也不执行风扇/PWM/存储控制命令。
+公开 issue 中不要包含 secret 或真实基础设施标识。通过私有维护者/安全渠道提交最小化、脱敏的
+复现材料。

@@ -2,63 +2,53 @@
 
 ## Read status correctly
 
-The Server lifecycle clock is authoritative. A restored state is stale until a new accepted report arrives. A healthy empty collection is distinct from an unavailable collection, and `not_configured` is distinct from an error.
+The Server clock determines Device v2 lifecycle and freshness. A restored
+state is useful evidence but stale until the next accepted report. Collection
+success, data freshness, and business/hardware health are separate signals.
 
-Operationally degraded submodules remain visible. Do not convert these cases into a false device outage:
+Examples of non-fault limitations include an optional component that is not
+configured, a valid empty EasyTier set, and USB SMART that provides a trusted
+attribute-based health result but not native return status. These remain visible
+as partial/limited diagnostics. A SMART `failed` health result, invalid SMART
+field, rejected Device v2 update, authentication failure, or required transport
+failure remains fault evidence.
 
-- optional Hermes Agent is not installed;
-- a USB bridge exposes SMART attributes but not native return status;
-- an EasyTier peer/route/connector collection is validly empty;
-- an optional Lucky business module contains no configured objects.
+## Use the diagnostics tab
 
-Conversely, a genuine SMART failure, rejected Device v2 report or failed transport must remain visible as a failure/degraded state.
+The Diagnostics tab is a Server-side explanation of the current stats
+projection. Read the affected component, stable resource identity, source,
+field, code, and bounded reason together. It is not a request log and should
+not contain credentials or complete raw payloads.
+
+`observed_count`, `displayed_count`, and `truncated` distinguish a bounded UI
+list from the complete observed set. A healthy-looking first rows list does not
+cancel a retained fault from another resource. After a valid recovery report,
+current diagnostics resolve; any historical audit belongs outside the current
+projection.
 
 ## Routine diagnosis
 
-Start with the affected device's lifecycle state, update time and collection statuses. Compare Client snapshot, accepted Server projection and web view. For a deployment issue, compare running image digest and OCI revision to the intended immutable revision before investigating application behavior.
+Compare the Client's accepted collection time, Server receive time, current
+image digest/OCI revision, component freshness, and resource diagnostics. Do
+not diagnose a display issue by opening an arbitrary shell in a container,
+changing a router, changing a disk setting, or executing an undocumented
+command. Use fixed read-only diagnostics only.
 
-Use only documented fixed diagnostics. Do not enter containers, run arbitrary host commands or change router/Lucky/EasyTier configuration to diagnose a monitoring display issue.
+For EasyTier, use `null`/not observable rather than false when direct/relay or
+IPv6 UDP evidence is insufficient. For UniFi, verify device/interface identity
+before associating a WAN result, fan, port, or static capability.
 
-## Backup and recovery
+## Backup, restart, and rollback
 
-Back up Server state, registry configuration and non-secret deployment files before planned recreation. Preserve persistent state during a restart or Compose down/up test. Recover by recreating the affected service from a known exact image and configuration, then wait for a new accepted report before calling restored data fresh.
+Before changing a Server, privately back up the exact state file and its `~`
+backup, configuration/Registry revision, and prior immutable image digests.
+Ensure the copy is consistent and checksum it. A controlled Server restart
+must preserve persisted state, then receive a natural report before freshness
+is declared current.
 
-## Device v2 state upgrade and rollback
-
-The first collection-diagnostics Server change after 2.7 persists structured
-decode evidence and the explicit presence of EasyTier display-count metadata.
-The on-disk state format still identifies as `version: 2`; therefore that
-version string alone is **not** a downgrade compatibility guarantee. Isolated
-compatibility validation established these two directions:
-
-- an exact 2.7 (`c4e3fd30e60843373594c936fb62e5908062f685`) state restores with
-  the newer Server;
-- an exact 2.7 Server starts with newer state but rejects the affected device
-  during restoration and retains it as a corrupt orphan.
-
-Before upgrading the Server, make a private copy of the exact state file and
-its `~` backup, record the Server and Client immutable digests plus the
-configuration/registry revision, and retain them together. For a known
-absolute state-file path, an operator can use:
-
-```sh
-STATE_FILE=/absolute/path/to/server-state.json
-BACKUP_DIR=/absolute/path/to/rollback-before-server-upgrade
-install -d -m 0700 -- "$BACKUP_DIR"
-cp --preserve=mode,timestamps -- "$STATE_FILE" "$BACKUP_DIR/"
-[ ! -e "$STATE_FILE~" ] || cp --preserve=mode,timestamps -- "$STATE_FILE~" "$BACKUP_DIR/"
-sha256sum -- "$BACKUP_DIR"/*
-```
-
-A rollback across this boundary requires more than stopping the new Client:
-stop it first to preserve the single Device v2 writer, stop the newer Server,
-restore the exact prior Server/Client images and configuration, and restore
-the pre-upgrade state copy before starting the older Server. Validate Compose
-and then start Server before the matching Client; retain replay-protection
-state and verify that only one writer is online. Without the pre-upgrade state
-copy, this downgrade is not qualified: do not clear state or replay data just
-to make the older Server start.
-
-## EasyTier observation
-
-Use “not observable” for Direct/Relay/IPv6-UDP-Direct when there are no remote peers. Current 2.0 has a known peer-summary limitation with some 2.6.4 output that lists the local node; validate detailed rows before treating the summary as a remote-peer count.
+`version: 2` in a state file is not a universal downgrade promise. Newer
+collection-diagnostics state can be accepted by the current Server while an
+exact pre-change 2.7 Server may retain affected data as a corrupt orphan.
+Rollback requires the matching previous Server/Client images, configuration,
+and pre-upgrade state. Stop the newer Client first, preserve single-writer
+identity, then restore the older Server state before restarting it.

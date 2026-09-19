@@ -19,7 +19,7 @@ permissions:
 env:
   IMAGE_REGISTRY: ghcr.io
   IMAGE_NAMESPACE: ${{ github.repository_owner }}
-  IMAGE_SOURCE: https://github.com/404404/HermesStatus
+  IMAGE_SOURCE: https://github.com/404404/HardwareStatus
   PRODUCT_VERSION: "2.7"
   SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
@@ -310,8 +310,8 @@ jobs:
           platforms: linux/amd64
           tags: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/hermesstatus-server:${{ steps.candidate_state.outputs.candidate_tag }}
           labels: |
-            org.opencontainers.image.title=HermesStatus Server
-            org.opencontainers.image.description=HermesStatus device status server
+            org.opencontainers.image.title=HardwareStatus Server
+            org.opencontainers.image.description=HardwareStatus device status server
             org.opencontainers.image.version=2.7
             org.opencontainers.image.revision=${{ env.SOURCE_SHA }}
             org.opencontainers.image.created=${{ steps.provenance.outputs.build_date }}
@@ -334,8 +334,8 @@ jobs:
           platforms: linux/amd64
           tags: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/hermesstatus-client:${{ steps.candidate_state.outputs.candidate_tag }}
           labels: |
-            org.opencontainers.image.title=HermesStatus Client
-            org.opencontainers.image.description=HermesStatus host and Hermes profile collector
+            org.opencontainers.image.title=HardwareStatus Client
+            org.opencontainers.image.description=HardwareStatus host and Hermes profile collector
             org.opencontainers.image.version=2.7
             org.opencontainers.image.revision=${{ env.SOURCE_SHA }}
             org.opencontainers.image.created=${{ steps.provenance.outputs.build_date }}
