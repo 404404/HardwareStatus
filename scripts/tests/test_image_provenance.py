@@ -12,7 +12,7 @@ SPEC.loader.exec_module(MODULE)
 
 REVISION = "a" * 40
 CREATED = "2026-07-21T00:00:00Z"
-SOURCE = "https://github.com/404404/HermesStatus"
+SOURCE = "https://github.com/404404/HardwareStatus"
 PRODUCT_VERSION = "2.5"
 CANDIDATE_TAG = "2.5-" + REVISION[:12]
 
@@ -23,7 +23,7 @@ def valid_inspect():
         "Config": {
             "Entrypoint": ["/usr/local/bin/serverstatus"],
             "Labels": {
-                "org.opencontainers.image.title": "HermesStatus Server",
+                "org.opencontainers.image.title": "HardwareStatus Server",
                 "org.opencontainers.image.description": "read-only dashboard",
                 "org.opencontainers.image.version": PRODUCT_VERSION,
                 "org.opencontainers.image.revision": REVISION,
@@ -44,7 +44,7 @@ def valid_inspect():
 def validate(payload):
     return MODULE.validate_inspect(
         payload,
-        expected_title="HermesStatus Server",
+        expected_title="HardwareStatus Server",
         expected_entrypoint=["/usr/local/bin/serverstatus"],
         version=PRODUCT_VERSION,
         revision=payload["Config"]["Labels"]["org.opencontainers.image.revision"],
@@ -64,8 +64,8 @@ class ImageProvenanceTests(unittest.TestCase):
         self.assertIn('echo "candidate_tag=${PRODUCT_VERSION}-${GITHUB_SHA::12}"', workflow)
         self.assertIn('echo "product_version=${PRODUCT_VERSION}"', workflow)
         self.assertNotIn("2.3-preview", workflow)
-        self.assertIn("org.opencontainers.image.title=HermesStatus Server", workflow)
-        self.assertIn("org.opencontainers.image.title=HermesStatus Client", workflow)
+        self.assertIn("org.opencontainers.image.title=HardwareStatus Server", workflow)
+        self.assertIn("org.opencontainers.image.title=HardwareStatus Client", workflow)
         self.assertIn("io.hermesstatus.component=server", workflow)
         self.assertIn("io.hermesstatus.component=client", workflow)
         for label in (

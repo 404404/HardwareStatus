@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.example.invalid/hermesstatus/device-update-response-v2.schema.json",
-  "title": "HermesStatus 2.2 device update public response",
+  "title": "HardwareStatus device update public response",
   "oneOf": [
     {"$ref": "#/$defs/success"},
     {"$ref": "#/$defs/errorResponse"}

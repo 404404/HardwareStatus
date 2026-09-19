@@ -1,22 +1,26 @@
-# HermesStatus documentation
+# HardwareStatus documentation
 
-[中文文档](zh-CN/README.md)
+[中文文档](zh-CN/README.md) · [Repository](https://github.com/404404/HardwareStatus)
 
-This set documents the current `2.5` development line. It describes deployed
-behavior, strict trust boundaries, candidate deployment and known limitations;
-the release candidate workflow does not itself promote Stable 2.3.
+These documents describe the current `2.0` main branch after the 2.7 release
+and the first collection-diagnostics work merged in PR #37. They describe
+current source behavior; they do not announce a new stable release or replace
+candidate provenance requirements.
+
+The repository is HardwareStatus. Runtime compatibility names beginning with
+`hermesstatus` remain intentionally unchanged; see the root [README](../README_EN.md).
 
 | Document | Purpose |
 | --- | --- |
-| [Architecture](ARCHITECTURE.md) | Components, data flow, ownership, and product boundaries. |
-| [Configuration](CONFIGURATION.md) | Server, Client, Device v2, hardware, Lucky, and EasyTier settings. |
-| [Device configuration guide](DEVICE_CONFIGURATION.md) | Registry identity, credential files, Client config, and safe mounts. |
-| [Deployment](DEPLOYMENT.md) | Compose deployment, upgrade, verification, and rollback. |
-| [Security](SECURITY.md) | Trust boundaries, credentials, transport, and least privilege. |
-| [Operations](OPERATIONS.md) | Freshness, health interpretation, backups, and troubleshooting. |
-| [Development](DEVELOPMENT.md) | Test gates and pull-request workflow. |
-| [EasyTier monitoring](design/EASYTIER_MONITORING.md) | Read-only model, source boundaries, and semantics. |
-| [Hardware monitoring](design/HARDWARE_MONITORING.md) | SMART, filesystems, storage topology, and diagnostic semantics. |
-| [UniFi monitoring](design/UNIFI_MONITORING.md) | Profile-driven read-only SSH telemetry for qualified UniFi console models. |
+| [Architecture](ARCHITECTURE.md) | Components, one-projection data flow, identity, diagnostics, and boundaries. |
+| [Configuration](CONFIGURATION.md) | Server, Device v2, unified Client, optional collectors, and compatibility names. |
+| [Device configuration](DEVICE_CONFIGURATION.md) | Registry identity, credential files, strict config, and reviewed mounts. |
+| [Deployment](DEPLOYMENT.md) | Immutable images, upgrade sequence, verification, persistence, and rollback. |
+| [Security](SECURITY.md) | Trust boundaries, secrets, TLS/SSH, and least privilege. |
+| [Operations](OPERATIONS.md) | Freshness, diagnostics, backup/recovery, and troubleshooting. |
+| [Development](DEVELOPMENT.md) | Checks, documentation expectations, and PR workflow. |
+| [EasyTier design](design/EASYTIER_MONITORING.md) | Read-only collection, aggregate/display bounds, and uncertainty. |
+| [Hardware design](design/HARDWARE_MONITORING.md) | SMART, filesystems, resource diagnostics, and safe fallbacks. |
+| [UniFi design](design/UNIFI_MONITORING.md) | Catalog authority, runtime identity, WAN/port ownership, and read-only transport. |
 
-Keep the English and Chinese documents semantically synchronized in the same documentation change.
+Keep English and Chinese documents semantically synchronized in one change.

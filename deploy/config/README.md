@@ -1,5 +1,9 @@
 # Unified Client configuration
 
+This is the HardwareStatus public project. `HERMESSTATUS_CONFIG_FILE` and the
+`hermesstatus` container paths below are deliberately retained runtime
+compatibility interfaces.
+
 The Client reads one JSON document at HERMESSTATUS_CONFIG_FILE (canonical
 container path /run/secrets/hermesstatus/client-config.json). The document
 uses schema_version: 1, rejects unknown fields, and names every collector

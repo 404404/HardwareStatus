@@ -2,56 +2,38 @@
 
 ## 正确理解状态
 
-Server 生命周期时钟是权威来源。恢复状态在收到新的已接受上报前为 stale。健康的空采集不同于 unavailable，`not_configured` 也不同于 error。
+Server 时钟决定 Device v2 生命周期和 freshness。恢复的 state 是有用证据，但在下一次 report
+被接受前仍为 stale。采集成功、数据 freshness 与业务/硬件健康是独立信号。
 
-以下是可见但不应被误判为整个设备故障的状态：
+非故障限制包括：未配置的可选组件、合法空 EasyTier 集合，以及 USB SMART 能提供可信属性健康
+结果但没有 native return status。这些会以 partial/limited 诊断保留。SMART `failed`、SMART
+字段非法、Device v2 上报被拒绝、认证失败或必需 transport 失败仍是故障证据。
 
-- 可选 Hermes Agent 未安装；
-- USB bridge 可读取 SMART 属性但无 native return status；
-- EasyTier peer/route/connector 采集为有效空结果；
-- 可选 Lucky 业务模块没有配置对象。
+## 使用组件诊断页
 
-真正的 SMART 失败、被拒绝的 Device v2 上报或传输失败必须保持为 failure/degraded。
+组件诊断页是 Server 对当前 stats 投影的解释。应同时查看 component、稳定 resource identity、
+source、field、code 与有界 reason。它不是请求日志，不能含有凭据或完整原始 payload。
+
+`observed_count`、`displayed_count` 和 `truncated` 区分有界 UI 列表与完整观测集合。第一行看似
+健康不能取消其他资源保留的 fault。有效恢复 report 到达后，当前诊断会消失；历史审计应在当前
+投影之外保存。
 
 ## 日常诊断
 
-先查看目标设备的生命周期状态、更新时间和 collection status，再对照 Client snapshot、Server 已接受投影和 Web 页面。部署问题应先比较运行中的 image digest/OCI revision 与目标不可变 revision，之后再排查应用行为。
+比较 Client accepted collection time、Server receive time、运行 image digest/OCI revision、组件
+freshness 和资源诊断。不要通过进入容器执行任意 shell、改 router、改磁盘设置或执行未文档化
+命令排查展示问题；仅使用固定只读诊断。
 
-只使用文档规定的固定诊断。不要进入容器、运行任意主机命令，或为了诊断展示问题而修改 router/Lucky/EasyTier 配置。
+EasyTier 对 Direct/Relay/IPv6 UDP 缺乏证据时应显示 `null`/不可观测，而不是 false。UniFi 在关联
+WAN、风扇、端口或静态能力前必须先核对设备/接口 identity。
 
-## 备份与恢复
+## 备份、重启与回滚
 
-计划重建前备份 Server state、Registry 配置和非秘密部署文件。restart 或 Compose down/up 测试时保留持久状态。恢复时从已知精确镜像与配置重建受影响服务，然后等待新的已接受上报再将恢复数据视为 fresh。
+修改 Server 前，私有备份并校验准确 state 文件及其 `~` 备份、配置/Registry revision 和旧不可变
+image digest。受控 Server restart 必须保留 persistence，并在收到自然 report 后才宣布 freshness
+恢复。
 
-## Device v2 状态升级与回滚
-
-2.7 之后的第一轮采集诊断 Server 变更会持久化结构化解码证据，以及
-EasyTier 显示计数元数据是否显式出现。磁盘状态中的格式仍标记为
-`version: 2`，因此不能仅凭这个字符串推断可安全降级。隔离兼容验证已确认：
-
-- 精确 2.7（`c4e3fd30e60843373594c936fb62e5908062f685`）写出的状态可以由
-  新 Server 恢复；
-- 精确 2.7 Server 可以在新状态存在时启动，但会拒绝恢复受影响设备，并将其
-  保留为损坏孤儿状态。
-
-升级 Server 前，应私有备份精确状态文件及其 `~` 备份，并把 Server/Client
-不可变 digest 和配置/Registry 修订一并记录。已知状态文件绝对路径时，操作员可执行：
-
-```sh
-STATE_FILE=/absolute/path/to/server-state.json
-BACKUP_DIR=/absolute/path/to/rollback-before-server-upgrade
-install -d -m 0700 -- "$BACKUP_DIR"
-cp --preserve=mode,timestamps -- "$STATE_FILE" "$BACKUP_DIR/"
-[ ! -e "$STATE_FILE~" ] || cp --preserve=mode,timestamps -- "$STATE_FILE~" "$BACKUP_DIR/"
-sha256sum -- "$BACKUP_DIR"/*
-```
-
-跨越该边界回滚不等于停止新 Client：先停止它以保证只有一个 Device v2 writer，
-再停止新 Server；恢复精确的旧 Server/Client 镜像与配置，并在启动旧 Server 前恢复
-升级前的状态副本。验证 Compose 后按 Server、匹配 Client 的顺序启动，保留重放保护
-状态并确认只有一个 writer 在线。若没有升级前状态副本，此降级不具备资格；不要为了
-让旧 Server 启动而清空状态或重放数据。
-
-## EasyTier 观测
-
-没有远端 peer 时，Direct/Relay/IPv6-UDP-Direct 应为“不可观测”。部分 2.6.4 输出包含本机 peer 时，Client 使用 own-peer-ID/`Local` 标记排除该行。若界面显示“其余明细未显示”，应以观察总数而非已显示行数判断规模。
+state 的 `version: 2` 不是通用降级承诺。新的 collection-diagnostics state 可由当前 Server
+读取，而 exact pre-change 2.7 Server 可能将受影响数据保留为 corrupt orphan。回滚需要匹配的旧
+Server/Client image、配置和升级前 state：先停新 Client 保证单 writer，再恢复旧 Server state 后
+启动旧 Server。

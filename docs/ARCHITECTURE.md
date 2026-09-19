@@ -1,89 +1,80 @@
 # Architecture
 
-HermesStatus is a small, read-only monitoring system.  A Client collects a
-bounded set of host observations and sends them to the Server; the Server
-validates and persists the accepted state; the web application reads the
-Server's single statistics projection.
+HardwareStatus is a read-only monitoring system with one authoritative browser
+projection. The public repository has been renamed to HardwareStatus; the
+existing `hermesstatus` runtime namespace remains a compatibility boundary.
 
 ```text
-host observations -> Client -> Device v2 HTTPS -> Server -> /json/stats.json -> web UI
+authorized host inputs → Python Client → Device v2 HTTPS → Go Server
+                                                    ↓
+                                      persisted accepted state
+                                                    ↓
+                           /json/stats.json → Web UI and Diagnostics tab
 ```
 
-## Device identity and data flow
+## Identity, acceptance, and persistence
 
-The Device Registry is the authority for `device_id`, `display_name`, enablement
-and protocol.  A Client-reported hostname is observation data only: it cannot
-rename a Registry device.  Device v2 uses per-device credentials stored by the
-Server as digests, TLS, replay/conflict checks and server-authoritative lifecycle
-status.  Legacy reports remain supported where they are explicitly configured.
+The Device Registry is authoritative for `device_id`, `display_name`,
+enablement, and protocol. A reported hostname is observation data and cannot
+rename a Registry device. Device v2 uses TLS, a per-device credential stored by
+the Server as a digest, replay/conflict checks, and a Server-side lifecycle
+clock. Legacy TCP reports remain only where explicitly configured.
 
-Accepted updates are atomic.  Stale, conflicting or invalid reports do not
-replace the last accepted state.  After a Server restart restored data is stale
-until a new accepted report arrives.
+An accepted update is atomic. Invalid, stale, conflicting, or unauthorized
+updates do not overwrite the last accepted observation. Restored state is
+available for diagnosis after a Server restart but remains stale until a new
+report is accepted.
 
-## Monitoring domains
+## One projection, independent domains
 
-The current projection contains independent read-only domains:
+The Server validates Client extensions and produces the single stats document
+consumed by every UI tab. It does not make the browser join raw Client data or
+poll collectors independently. Current domains are hardware/OS, Docker,
+Hermes, Lucky, EasyTier, and configured UniFi targets.
 
-- hardware and operating-system observations;
-- Docker;
-- Hermes Agent profiles when the Agent is installed;
-- Lucky;
-- EasyTier;
-- UniFi targets when an explicit Client-side profile is configured.
+The following signals are deliberately independent:
 
-A domain can be fresh, partial, degraded, unavailable or not configured without
-turning unrelated domains into failures.  In particular, an optional Hermes
-Agent reported as `not_installed`, or a usable SMART attribute fallback, does
-not alone make the device offline or unhealthy.
+| Signal | Meaning |
+| --- | --- |
+| Device lifecycle | Whether the authenticated Client is online under the Server clock. |
+| Freshness | Whether a particular observation is recent enough for its collection policy. |
+| Collection quality | Whether a collector completed, was partial, unavailable, disabled, or not configured. |
+| Hardware/business health | The interpreted health of an observed disk, service, route, or remote target. |
+| Diagnostics | Bounded, resource-specific evidence explaining current errors or limitations. |
 
-Hardware separates physical disks from volumes/filesystems.  This allows RAID,
-device-mapper and DSM volumes to be displayed without pretending that a volume
-belongs to one physical disk.
+A healthy collection does not imply healthy hardware. Conversely, an optional
+component that is not configured, a valid empty collection, or a supported
+SMART attribute fallback does not make the device offline.
 
-## Trust boundaries
+## Diagnostics model
 
-Collectors use fixed allowlists and parsers.  They do not expose a remote shell,
-arbitrary command runner, configuration editor or control plane.  Sensitive raw
-objects, credentials, private endpoints and EasyTier configuration are not
-persisted or displayed.  The web UI renders untrusted strings safely and shares
-one stats document/fetch path across pages.
+Diagnostics are built for the same projection time as freshness. They preserve
+strict decode/validation evidence and add current domain evidence, then clear
+when a later valid observation resolves it. A diagnostic has a stable domain,
+component, code, optional field/source/reason, and affected resource identity.
+This prevents equal errors from different disks, filesystems, profiles, or API
+endpoints from being merged accidentally.
 
-## EasyTier model
+Lists remain bounded. The Server records observed and displayed counts with a
+truncation marker, prioritizing fault evidence over normal rows. A UI list is
+therefore not a claim that the displayed count is the total count.
 
-EasyTier is monitoring only.  The Client uses a configured loopback RPC and a
-fixed read-only CLI path.  It has no commands for connectors, routes,
-credentials, port forwarding, logging or service restart.  Profiles and routes
-are normalized from a strict whitelist.  `supported`, `present` and `observed`
-are distinct concepts; they are not inferred from zero RPM, an absent device or
-a missing peer.
+## UniFi authority boundary
 
-When no remote peer is observed, Direct, Relay and IPv6-UDP-Direct are
-`not_observable`, not `false` or zero.  Current release limitation: some
-EasyTier 2.6.4 output can include the local node in the peer list.  The remote
-peer summary can therefore be overstated until the planned local-peer filter is
-implemented.
+The Client collects only fixed, read-only SSH/API sources selected by an
+explicit profile. A profile chooses collection sources; it is not a hardware
+identity. Runtime API/SSH identity must match a verified alias in the frozen
+`clients/unifi_catalog/` bundle before static ports, PoE, storage, power, or
+processor facts are projected. Unknown or candidate aliases retain bounded
+runtime observations but never receive fabricated static capability.
 
-## Deliberately out of scope
+Static port data joins runtime observations only by `(device_id, port_idx)`.
+WAN, uplink, fan, storage, and power observations remain attached to their
+verified device/interface identity; they must not leak across devices.
 
-HermesStatus is not an EasyTier manager, a remote-execution service, an alerting
-system, a time-series database, a topology editor, or a general network traffic
-or carrier-probing product.
+## Deliberate exclusions
 
-## UniFi model profiles
-
-UniFi V1 is a remote-observation domain, not a second Client identity or a
-control channel. A Device v2 Client runs one bounded, fixed OpenSSH session per
-collection cycle and normalizes only symbolic sources: `ubnt-systool cputemp`,
-aggregate `/proc/stat`, selected `/proc/meminfo`, `/proc/uptime`, and
-`/proc/loadavg`. The Server receives a bounded telemetry projection only.
-
-Profile selection is administrator-controlled and fail-closed. The profile
-contains only bounded collection sources and formulas; it cannot establish
-hardware identity or static capability. UDW and UCG Max share the generic
-collector while hardware differences are projected from a verified runtime
-identity in the frozen Catalog. `supported`, `present`, and `observed` remain separate:
-0 RPM, an unobserved block device, or an optional diagnostic source never
-creates an inferred physical failure. UniFi transport failure marks only the
-UniFi target stale; it never changes Device v2 identity or makes the collector
-host offline.
+HardwareStatus is not a remote shell, EasyTier/UniFi/Lucky manager, automatic
+registration service, network scanner, alerting system, time-series database,
+or arbitrary command/path runner. The Server never reads a Docker socket,
+collector secret, raw client configuration, or raw remote response.

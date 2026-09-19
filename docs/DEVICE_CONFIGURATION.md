@@ -1,88 +1,68 @@
-# Device Configuration
+# Device configuration
 
-This guide describes the Device v2 configuration boundary. Examples use documentation-only addresses and placeholder secret paths.
+Device v2 configuration establishes identity and least-privilege collection;
+it is not a remote-control configuration format. The repository is
+HardwareStatus, while the documented `hermesstatus` container paths remain
+intentional compatibility paths.
 
 ## Paths and mounts
 
-Typical host paths are root-owned:
+Canonical unified Client configuration paths are:
 
-| Host path | Container path | Purpose |
+| Host | Host path | Container path |
 | --- | --- | --- |
-| `/etc/hermesstatus/client-v2.json` | same path | Client configuration |
-| `/etc/hermesstatus/credentials.d/<device>.token` | `/run/secrets/hermesstatus-device-token` | Device v2 token |
-| `/etc/hermesstatus/ca.crt` | `/run/secrets/hermesstatus-ca.crt` | Server CA |
-| fixed SMART devices | same device nodes | selected SMART observation |
-| fixed empty filesystem probe directories | fixed `/host-storage/...` paths | selected filesystem observation |
+| Linux/GK50 | `/home/hermes/status/config/client-config.json` | `/run/secrets/hermesstatus/client-config.json` |
+| Synology DSM | `/volume1/docker/status/config/client-config.json` | `/run/secrets/hermesstatus/client-config.json` |
 
-All secret and probe mounts are read-only. Never mount all of `/dev`, the host root, a Docker socket or a package tree merely for observation.
+Mount the Device v2 token separately at
+`/run/secrets/hermesstatus-device-token`. Keep configuration, token, CA,
+UniFi password/API-key/known-hosts, and Lucky token files root-owned regular
+files with restrictive permissions and read-only mounts. Do not print their
+contents during diagnosis.
 
-## Device v2 file
+## Identity and transport
 
-```json
-{
-  "device": {
-    "id": "example-device",
-    "server": {
-      "url": "https://status.example.invalid:443",
-      "ca_file": "/run/secrets/hermesstatus-ca.crt",
-      "token_file": "/run/secrets/hermesstatus-device-token"
-    }
-  },
-  "hardware": {
-    "smart_devices": ["/dev/sda"],
-    "filesystem_probes": [
-      {"mountpoint": "/data", "probe_path": "/host-storage/data"}
-    ]
-  }
-}
-```
+The Server Registry owns device ID, browser display name, enablement, and
+credential digest. Use one identity/token per active Client. Configure an
+HTTPS Server URL, TLS verification, an optional CA file where necessary, and
+bounded connect/read timeouts. Do not let a hostname, a Client config display
+string, or an observed remote name overwrite a Registry display name.
 
-The registry owns the display name. `device.id` is stable identity; do not use display names, addresses, hostnames or EasyTier peer IDs as replacements.
+The strict unified schema is the preferred format. Retain an exact legacy
+configuration only as rollback material; do not start two configurations or
+two containers that report as the same device.
+
+## Reviewed hardware access
+
+Authorize each physical SMART device and filesystem probe explicitly. A disk
+requires a corresponding read-only `devices:` mapping; a filesystem probe
+requires only the narrow read-only host path it needs. Do not mount all disks,
+the host root, `/proc` broadly, or arbitrary data directories.
+
+Explicit SMART device entries remain authoritative. Automatic discovery is
+bounded and uses qualified transport evidence; it does not hard-code Synology
+or disk-model transport types. A collector must retain a genuine invalid field
+or failed health result instead of probing alternative transports to find a
+passing result.
 
 ## Optional integrations
 
-Lucky accepts an explicit loopback base URL, TLS policy and optional token-file mode. If a token is configured, mount only the token file under a fixed secret path. Empty token files are not a substitute for `auth_mode: none`.
+Enable each collector explicitly. Disabled collectors are shown as not
+configured in component diagnostics; they are not collection errors. Optional
+Hermes/Lucky/EasyTier/UniFi failures remain scoped to their domain and do not
+rename, deauthenticate, or take the host Device v2 Client offline.
 
-EasyTier requires an explicit enablement decision, fixed read-only CLI path and loopback RPC endpoint. The optional administrative role may be omitted; an empty optional value has the same default semantics as omission. Known, non-empty roles are validated strictly.
+For UniFi, profile, target, credential file, strict `known_hosts`, optional API
+key file, and TLS pin are bounded fields. A profile selects only fixed sources;
+runtime verified Catalog identity controls static capability. No field can add
+a remote command, arbitrary path, or arbitrary controller URL.
 
-## Synology/DSM notes
+## Preflight checklist
 
-DSM storage is layered. Configure narrow read-only probes for the intended data volumes, and expose those volumes as filesystems rather than associating RAID `/dev/md*` volumes with individual member disks. A DSM identity source, when needed, must be a small read-only mount of the appropriate version file; do not mount broad system directories.
-
-## Checklist
-
-1. Create the Registry device and digest-only Server credential.
-2. Write `client-v2.json` and root-owned token/CA files.
-3. Validate Server and Client configuration.
-4. Run a non-mutating preflight, then deploy an immutable image.
-5. Confirm identity, HTTPS ingestion, fresh state and display name in the UI.
-
-## UniFi target (optional)
-
-Add the `unifi` object to the same Device v2 file only when a qualified target
-is intended. The profile selects the bounded collection sources; it does not
-establish controller hardware identity or static capabilities. An unknown
-profile fails closed, while static capability is projected only after a
-verified runtime Catalog identity. The configuration has no command, path, token,
-SSH-key or shell field:
-
-```json
-"unifi": {
-  "enabled": true,
-  "profile": "ucg-max",
-  "host": "console.example.invalid",
-  "port": 22,
-  "username": "root",
-  "credential_file": "/run/secrets/unifi-password",
-  "known_hosts_file": "/run/secrets/unifi-known-hosts",
-  "connect_timeout_seconds": 10,
-  "interval_seconds": 60
-}
-```
-
-To disable the integration, use exactly `"unifi": {"enabled": false}` or
-remove the optional object. The credential and known-host files are separate,
-root-owned, read-only mounts. The profile does not prove hardware presence:
-UCG Max `fan1=0` is an observed value, not a fan-health failure; unknown
-runtime models retain observations but withhold static capability. Unknown
-NVMe capability/presence remains unknown.
+1. Validate Registry and Client JSON before deployment.
+2. Verify file owner, permissions, regular-file status, and read-only mounts
+   without reading secret contents.
+3. Verify one Device v2 writer per identity.
+4. Pin an approved Server/Client image digest and record the OCI revisions.
+5. Confirm the next natural report is accepted, current, and attributed to the
+   Registry device.

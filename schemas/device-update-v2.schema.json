@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.example.invalid/hermesstatus/device-update-v2.schema.json",
-  "title": "HermesStatus 2.2 HTTPS device update envelope",
+  "title": "HardwareStatus HTTPS device update envelope",
   "type": "object",
   "required": ["schema_version", "device", "collected_at", "stats"],
   "properties": {

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/404404/HermesStatus/schemas/lucky-extension.schema.json",
-  "title": "HermesStatus Lucky monitoring extension",
+  "$id": "https://github.com/404404/HardwareStatus/schemas/lucky-extension.schema.json",
+  "title": "HardwareStatus Lucky monitoring extension",
   "$comment": "Strict display-only projection. Authentication, raw responses, addresses, configuration and write operations are deliberately absent.",
   "type": "object",
   "required": ["status", "source", "service", "version", "ip_resolution", "dynamic_dns", "web_services", "port_forwards", "certificates", "updated_at", "stale", "error"],

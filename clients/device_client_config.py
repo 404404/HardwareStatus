@@ -1,4 +1,4 @@
-"""Shared HermesStatus device_v2 mode, configuration, and secret loading."""
+"""Shared HardwareStatus device_v2 mode, configuration, and secret loading."""
 
 from __future__ import annotations
 

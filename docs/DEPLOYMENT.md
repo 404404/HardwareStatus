@@ -1,84 +1,72 @@
 # Deployment
 
-Deploy Server and Clients from an immutable, reviewed revision.  Record the
-full Git revision, image digest, OCI revision label, Compose project, ports,
-mounts, state paths and restart count before changing a service.
+Deploy only immutable GitHub-CI images from a recorded candidate. The currently
+published package names intentionally remain `hermesstatus-server` and
+`hermesstatus-client` after the repository rename.
+
+```yaml
+image: ghcr.io/404404/hermesstatus-server@sha256:<approved-server-digest>
+image: ghcr.io/404404/hermesstatus-client@sha256:<approved-client-digest>
+```
+
+Do not replace these with `latest`, a broad version tag, or a local build.
+Before any change, verify each image OCI revision equals the approved source
+SHA. For a Client with UniFi support, also verify the recorded Catalog revision
+and bundle hash.
+
+## Prepare a rollback set
+
+Record the current Server/Client image digests, Compose/configuration revision,
+mounts, network/PID/security options, and Device v2 identities. Make a private,
+checksummed copy of the Server state file and its `~` backup while avoiding a
+concurrent write. Retain the old images and configuration until the candidate
+is accepted.
+
+Do not share writable Server state between qualification and production
+projects. Preserve existing read-only mounts, tmpfs, device mappings, TLS/SSH
+material, and the single-writer identity contract.
 
 ## Normal sequence
 
-1. Validate Server registry/credentials and Client configuration.
-2. Build or pull exact Server and Client images from the same revision.
-3. Back up state and non-secret configuration.
-4. Recreate only the affected service.
-5. Verify health, restart count, image digest/revision and accepted Device v2
-   reports.
-6. Verify `/health`, `/json/stats.json` and the relevant web pages.
+1. Validate the rendered Compose configuration without starting containers.
+2. Update/recreate the Server using only the approved image reference; verify
+   image digest/revision, health, dashboard, and stats while the old Client
+   remains the sole writer.
+3. Stop the old Client for one Device v2 identity and confirm no Client writer
+   remains for that identity.
+4. Recreate only that Client with the matching immutable image. Confirm the
+   intended digest/revision, `restart_count=0`, and exactly one writer.
+5. Observe natural Client reports; do not count browser refreshes or Server
+   reads as collection cycles. Verify online/non-stale lifecycle, enabled
+   component freshness, and relevant resource diagnostics.
 
-Never use a mutable tag as the evidence for a qualification result.  A running
-container's OCI revision label and digest must match the intended revision.
+For a controlled Server restart, verify restored state is diagnosed as stale
+until a natural new report is accepted. Do not manufacture failures on live
+hardware merely to exercise a diagnostic branch.
 
-For the 2.5 release candidate, use the same immutable `2.5-<sha12>` tag for
-Server and Client and verify the full OCI revision and digest before recreation.
-Stable `2.3` remains unchanged; do not create or move a `2.5` or `latest` alias
-during candidate qualification.
+## Synology DSM
 
-## Device v2 deployment
+The DSM host normally needs only the Client image. The operator edits only the
+image reference in the existing Compose service after preserving its current
+configuration and state. Keep host network/PID mode, read-only rootfs, bounded
+tmpfs, reviewed device mappings, and protected token/configuration mounts. Do
+not run an old and new Client concurrently with the same Device v2 token.
 
-The Client must use its fixed JSON config file and read-only mounts for the
-Device token and CA.  Do not inject legacy `SERVER`, `PORT`, user or password
-variables into a Device v2 Client.  A failed preflight must not mutate a
-container; retain an exact rollback target before recreation.
+Use the templates in `deploy/compose/` as a reviewed starting point, not as a
+reason to broaden mounts or privileges.
 
-## Coexistence and rollback
+## Rollback
 
-Keep independent deployments isolated by Compose project, containers, networks,
-state, configuration and credentials.  Do not stop or recreate an unrelated
-stable service while qualifying another deployment.  On a real post-deploy
-failure, roll back only to the exact state captured before the affected
-recreation; do not delete persistent volumes as part of rollback.
+Rollback is a versioned set, not simply stopping the new Client:
 
-## Validation after deployment
+1. Stop the newer Client and confirm the identity has no writer.
+2. Stop the newer Server.
+3. Restore the matching prior Server/Client images, Compose/configuration, and
+   the pre-upgrade state plus its `~` backup.
+4. Validate Compose, start the prior Server, then start the matching Client.
+5. Confirm one writer, fresh accepted reports, and expected diagnostics.
 
-Confirm successful reports become fresh, restore behavior is stale until the
-next accepted report, and the browser receives data through the existing stats
-document.  Verify no secret is present in logs, process arguments, environment
-output, stats projection or the UI.
-
-## UniFi target deployment
-
-UniFi is enabled only through a reviewed Device v2 JSON configuration and two
-fixed read-only secret mounts: a credential file and a dedicated `known_hosts`
-file. Validate both file type, ownership and mode before a Client recreation.
-A container image can contain the profile library, but it must not contain
-site-specific credentials, host keys, targets or raw discovery output. After
-deployment, verify UniFi separately from host health: profile selection,
-transport state, timestamp progression, and stale/error presentation are
-expected evidence; a remote target failure must not be repaired by changing
-Docker privileges or by recreating the remote console.
-
-## Synology DSM manual cutover
-
-Use the operator-ready Compose from `deploy/compose/client-synology.example.yml`
-with the final immutable Client candidate tag. Prepare:
-
-```text
-/volume1/docker/status/
-├── config/client-config.json
-├── secrets/device-token
-└── status/
-```
-
-The config is mounted read-only at
-`/run/secrets/hermesstatus/client-config.json`; the Device v2 token remains a
-separate read-only mount at `/run/secrets/hermesstatus-device-token`. Preserve
-the existing SMART device and filesystem probe allowlists, DSM VERSION,
-`network_mode: host`, `pid: host`, read-only rootfs, no-new-privileges, Docker
-socket, and tmpfs settings. Add only individually reviewed block-device nodes.
-
-Before cutover, capture the current 2.3 container, image digest, config and
-status path. In DSM Container Manager, stop the old 2.3 Client, then recreate
-the 2.5 Client with the exact candidate. Never run both clients concurrently
-when they share a `device.id` and token. Verify Server health, fresh Device v2
-reports and each enabled collector. For rollback, stop the 2.5 Client and
-start the captured 2.3 container/image; do not delete its state or credentials
-until acceptance is complete.
+The state format still uses `version: 2`, but that string is not a downgrade
+guarantee. The first collection-diagnostics state written after 2.7 is not a
+qualified input for an exact pre-change 2.7 Server. Never clear persistence or
+replay protection to force a downgrade; use the captured pre-upgrade state.

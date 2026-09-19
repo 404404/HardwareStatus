@@ -1085,7 +1085,7 @@ async function run(){
   assert.match(appSource, /event\.key === 'Escape'/);
   assert.match(appSource, /event\.target === byId\('profileModal'\)/);
 
-  console.log('HermesStatus dashboard tests passed');
+  console.log('HardwareStatus dashboard tests passed');
 }
 
 run().catch(error => {

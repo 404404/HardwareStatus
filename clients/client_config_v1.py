@@ -1,4 +1,4 @@
-"""Strict HermesStatus 2.5 unified Client configuration.
+"""Strict HardwareStatus unified Client configuration.
 
 The unified file is a secret bundle for downstream collectors.  Device v2
 authentication remains a separate, fixed token file.  This module validates

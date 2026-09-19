@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.example.invalid/hermesstatus/client-v2-config.schema.json",
-  "title": "HermesStatus 2.5 Client configuration",
+  "title": "HardwareStatus legacy Client configuration",
   "type": "object",
   "required": [
     "version",

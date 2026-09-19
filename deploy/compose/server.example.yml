@@ -1,6 +1,6 @@
 services:
   server:
-    image: ghcr.io/404404/hermesstatus-server:${HERMESSTATUS_SERVER_TAG:?set immutable 2.5 candidate tag}
+    image: ghcr.io/404404/hermesstatus-server:${HERMESSTATUS_SERVER_TAG:?set approved immutable candidate tag}
     container_name: hermesstatus-server-2x
     restart: unless-stopped
     read_only: true
