@@ -1,9 +1,9 @@
-# HardwareStatus UniFi Catalog input
+# ServerStatus UniFi Catalog input
 
 This directory is the deterministic UniFi Catalog bundle consumed by the
-HardwareStatus Client. It is a build artifact, not a manually maintained model
+ServerStatus Client. It is a build artifact, not a manually maintained model
 table. The Client runtime and image package retain their existing
-`hermesstatus` compatibility names.
+`serverstatus` compatibility names.
 
 The bundle is acquired only through the reviewed catalog workflow, pinned to an
 upstream revision, and verified by the checked-in manifest SHA-256. Candidate

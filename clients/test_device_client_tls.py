@@ -265,6 +265,7 @@ class DeviceClientLocalTLSTests(unittest.TestCase):
         path, headers, body = SyntheticHandler.requests[0]
         self.assertEqual(path, "/api/v2/device-updates")
         self.assertEqual(headers["Authorization"], "Bearer " + TOKEN)
+        self.assertEqual(headers["X-ServerStatus-Device-ID"], "device-alpha")
         self.assertEqual(headers["X-HermesStatus-Device-ID"], "device-alpha")
         self.assertNotIn(TOKEN, body.decode())
 

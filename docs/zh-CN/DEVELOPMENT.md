@@ -1,7 +1,8 @@
 # 开发
 
-基于 [404404/HardwareStatus](https://github.com/404404/HardwareStatus) 的当前 `2.0`
-主线开发。源码中仍保留多个 `hermesstatus` 兼容名称；不能仅因仓库改名而重命名运行时接口。
+ServerStatus 产品基于 [404404/HardwareStatus](https://github.com/404404/HardwareStatus) 当前 `2.0`
+主线开发。新源码、metadata、测试和部署模板统一使用 `serverstatus` 命名；旧标识只允许出现在兼容
+测试和迁移代码中。
 
 ## 变更原则
 
@@ -43,5 +44,5 @@ git diff --check
 
 ## 文档
 
-行为或公开术语变化时同步更新中英文。项目名称是 HardwareStatus；已有运行时名称和 GHCR 包名
+行为或公开术语变化时同步更新中英文。GitHub 仓库名是 HardwareStatus；已有运行时名称和 GHCR 包名
 在有明确迁移计划前仍是兼容契约。

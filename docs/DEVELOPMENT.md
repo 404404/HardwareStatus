@@ -1,9 +1,9 @@
 # Development
 
-Develop against the current `2.0` branch of
-[404404/HardwareStatus](https://github.com/404404/HardwareStatus). The source
-tree retains several `hermesstatus` compatibility names; do not rename runtime
-interfaces merely because the repository changed name.
+Develop the ServerStatus product against the current `2.0` branch of
+[404404/HardwareStatus](https://github.com/404404/HardwareStatus). New code,
+metadata, tests, and deployment templates use the `serverstatus` namespace;
+legacy identifiers belong only in compatibility tests and migration code.
 
 ## Change discipline
 
@@ -52,6 +52,6 @@ evidence; never describe a passing test fixture as a GK50 or RS820 result.
 ## Documentation
 
 Update English and Chinese documents together when behavior or public
-terminology changes. The project is HardwareStatus, while existing runtime
+terminology changes. The GitHub repository is HardwareStatus, while existing runtime
 names and GHCR package names remain compatibility contracts until an explicitly
 planned migration changes them.

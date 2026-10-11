@@ -753,6 +753,9 @@ async function run(){
     setItem: (key, value) => stored.set(key, value),
     removeItem: key => stored.delete(key)
   };
+  stored.set('hermesstatus.selectedDeviceId', 'device-gamma');
+  assert.equal(app.readStoredDeviceId(storage), 'device-gamma');
+  assert.equal(stored.get(app.DEVICE_STORAGE_KEY), 'device-gamma');
   app.writeStoredDeviceId(storage, 'device-beta');
   assert.equal(app.readStoredDeviceId(storage), 'device-beta');
   app.writeStoredDeviceId(storage, '<script>');
@@ -972,7 +975,8 @@ async function run(){
   assert.match(hardwareMarkup, /id="hardwareFilesystemsBody"/);
   assert.match(hardwareMarkup, /卷 \/ 文件系统/);
   assert.match(indexMarkup, /css\/app\.css\?v=20260828-1/);
-  assert.match(indexMarkup, /js\/app\.js\?v=20260828-1/);
+  assert.match(indexMarkup, /js\/app\.js\?v=20261011-1/);
+  assert.match(indexMarkup, /<title>ServerStatus \| 云监控<\/title>/);
   assert.match(hardwareMarkup, /id="hardwareDisksBody"/);
   assert.deepEqual(
     [...hardwareMarkup.matchAll(/<th>([^<]+)<\/th>/g)].map(match => match[1]),
@@ -1085,7 +1089,7 @@ async function run(){
   assert.match(appSource, /event\.key === 'Escape'/);
   assert.match(appSource, /event\.target === byId\('profileModal'\)/);
 
-  console.log('HardwareStatus dashboard tests passed');
+  console.log('ServerStatus dashboard tests passed');
 }
 
 run().catch(error => {

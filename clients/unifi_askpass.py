@@ -9,7 +9,9 @@ import sys
 MAX_CREDENTIAL_BYTES = 4096
 
 def main() -> int:
-    path = os.environ.get("HERMESSTATUS_UNIFI_CREDENTIAL_FILE", "")
+    path = os.environ.get("SERVERSTATUS_UNIFI_CREDENTIAL_FILE") or os.environ.get(
+        "HERMESSTATUS_UNIFI_CREDENTIAL_FILE", ""
+    )
     if not path or "\x00" in path or not path.startswith("/") or ".." in path.split("/"):
         return 1
     try:

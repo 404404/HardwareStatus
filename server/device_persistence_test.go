@@ -446,7 +446,7 @@ func TestPersistencePreflightRejectsUnsafeBackupEvenWithValidPrimary(t *testing.
 	}
 	matches, err := filepath.Glob(filepath.Join(
 		filepath.Dir(opts.PersistencePath),
-		".hermesstatus-*.tmp",
+		".serverstatus-*.tmp",
 	))
 	if err != nil || len(matches) != 0 {
 		t.Fatalf("failed preflight left temporary state: %v %v", matches, err)

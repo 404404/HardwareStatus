@@ -23,19 +23,19 @@ def valid_inspect():
         "Config": {
             "Entrypoint": ["/usr/local/bin/serverstatus"],
             "Labels": {
-                "org.opencontainers.image.title": "HardwareStatus Server",
+                "org.opencontainers.image.title": "ServerStatus Server",
                 "org.opencontainers.image.description": "read-only dashboard",
                 "org.opencontainers.image.version": PRODUCT_VERSION,
                 "org.opencontainers.image.revision": REVISION,
                 "org.opencontainers.image.created": CREATED,
                 "org.opencontainers.image.source": SOURCE,
                 "org.opencontainers.image.licenses": "MIT",
-                "io.hermesstatus.component": "server",
+                "io.serverstatus.component": "server",
             },
             "Env": [
-                "HERMESSTATUS_CLIENT_VERSION=" + PRODUCT_VERSION,
-                "HERMESSTATUS_CLIENT_REVISION=" + REVISION,
-                "HERMESSTATUS_CLIENT_BUILD_TIME=" + CREATED,
+                "SERVERSTATUS_CLIENT_VERSION=" + PRODUCT_VERSION,
+                "SERVERSTATUS_CLIENT_REVISION=" + REVISION,
+                "SERVERSTATUS_CLIENT_BUILD_TIME=" + CREATED,
             ],
         },
     }
@@ -44,7 +44,7 @@ def valid_inspect():
 def validate(payload):
     return MODULE.validate_inspect(
         payload,
-        expected_title="HardwareStatus Server",
+        expected_title="ServerStatus Server",
         expected_entrypoint=["/usr/local/bin/serverstatus"],
         version=PRODUCT_VERSION,
         revision=payload["Config"]["Labels"]["org.opencontainers.image.revision"],
@@ -64,10 +64,10 @@ class ImageProvenanceTests(unittest.TestCase):
         self.assertIn('echo "candidate_tag=${PRODUCT_VERSION}-${GITHUB_SHA::12}"', workflow)
         self.assertIn('echo "product_version=${PRODUCT_VERSION}"', workflow)
         self.assertNotIn("2.3-preview", workflow)
-        self.assertIn("org.opencontainers.image.title=HardwareStatus Server", workflow)
-        self.assertIn("org.opencontainers.image.title=HardwareStatus Client", workflow)
-        self.assertIn("io.hermesstatus.component=server", workflow)
-        self.assertIn("io.hermesstatus.component=client", workflow)
+        self.assertIn("org.opencontainers.image.title=ServerStatus Server", workflow)
+        self.assertIn("org.opencontainers.image.title=ServerStatus Client", workflow)
+        self.assertIn("io.serverstatus.component=server", workflow)
+        self.assertIn("io.serverstatus.component=client", workflow)
         for label in (
             "org.opencontainers.image.version=${{ steps.provenance.outputs.product_version }}",
             "org.opencontainers.image.revision=${{ github.sha }}",
@@ -84,8 +84,8 @@ class ImageProvenanceTests(unittest.TestCase):
         self.assertIn('echo "candidate_tag=2.5-${GITHUB_SHA::12}"', workflow)
         self.assertIn('echo "product_version=2.5"', workflow)
         self.assertIn("VERSION=${{ steps.provenance.outputs.product_version }}", workflow)
-        self.assertIn("hermesstatus-server:${{ steps.provenance.outputs.candidate_tag }}", workflow)
-        self.assertIn("hermesstatus-client:${{ steps.provenance.outputs.candidate_tag }}", workflow)
+        self.assertIn("serverstatus-server:${{ steps.provenance.outputs.candidate_tag }}", workflow)
+        self.assertIn("serverstatus-client:${{ steps.provenance.outputs.candidate_tag }}", workflow)
 
     def test_server_dockerfile_copies_multi_device_contract_package(self):
         dockerfile = (
@@ -111,13 +111,13 @@ class ImageProvenanceTests(unittest.TestCase):
         dockerfile = (
             pathlib.Path(__file__).resolve().parents[2] / "Dockerfile.client"
         ).read_text(encoding="utf-8")
-        self.assertIn('io.hermesstatus.component="client"', dockerfile)
+        self.assertIn('io.serverstatus.component="client"', dockerfile)
 
     def test_server_dockerfile_sets_server_component_metadata(self):
         dockerfile = (
             pathlib.Path(__file__).resolve().parents[2] / "Dockerfile.server"
         ).read_text(encoding="utf-8")
-        self.assertIn('io.hermesstatus.component="server"', dockerfile)
+        self.assertIn('io.serverstatus.component="server"', dockerfile)
 
     def test_valid_metadata(self):
         result = validate(valid_inspect())
@@ -149,7 +149,7 @@ class ImageProvenanceTests(unittest.TestCase):
             created=CREATED,
         )
         payload = valid_inspect()
-        payload["Config"]["Env"][0] = "HERMESSTATUS_CLIENT_VERSION=" + CANDIDATE_TAG
+        payload["Config"]["Env"][0] = "SERVERSTATUS_CLIENT_VERSION=" + CANDIDATE_TAG
         with self.assertRaises(MODULE.ValidationError):
             MODULE.validate_client_runtime(
                 payload["Config"],

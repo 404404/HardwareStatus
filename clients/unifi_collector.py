@@ -1,4 +1,4 @@
-"""UniFi domain adapter for the HardwareStatus host extension lifecycle."""
+"""UniFi domain adapter for the ServerStatus host extension lifecycle."""
 from __future__ import annotations
 
 import copy

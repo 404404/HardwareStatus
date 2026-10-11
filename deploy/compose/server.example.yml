@@ -1,7 +1,7 @@
 services:
   server:
-    image: ghcr.io/404404/hermesstatus-server:${HERMESSTATUS_SERVER_TAG:?set approved immutable candidate tag}
-    container_name: hermesstatus-server-2x
+    image: ghcr.io/404404/serverstatus-server:${SERVERSTATUS_SERVER_TAG:-${HERMESSTATUS_SERVER_TAG:?set approved immutable candidate tag}}
+    container_name: serverstatus-server-2x
     restart: unless-stopped
     read_only: true
     security_opt:
@@ -16,5 +16,6 @@ services:
     ports:
       - "21443:80"
     volumes:
+      - ${SERVER_CONFIG_HOST:-./server-config.json}:/etc/serverstatus/config.json:ro
       - ${SERVER_CONFIG_HOST:-./server-config.json}:/etc/hermesstatus/config.json:ro
       - ${SERVER_STATE_HOST:-./server-state}:/app/data

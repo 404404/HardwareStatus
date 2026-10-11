@@ -1,9 +1,9 @@
 # Device configuration
 
 Device v2 configuration establishes identity and least-privilege collection;
-it is not a remote-control configuration format. The repository is
-HardwareStatus, while the documented `hermesstatus` container paths remain
-intentional compatibility paths.
+it is not a remote-control configuration format. New deployments use the
+`serverstatus` container paths shown below. Upgraded Clients can continue to
+read existing HermesStatus paths when those paths remain mounted.
 
 ## Paths and mounts
 
@@ -11,11 +11,11 @@ Canonical unified Client configuration paths are:
 
 | Host | Host path | Container path |
 | --- | --- | --- |
-| Linux/GK50 | `/home/hermes/status/config/client-config.json` | `/run/secrets/hermesstatus/client-config.json` |
-| Synology DSM | `/volume1/docker/status/config/client-config.json` | `/run/secrets/hermesstatus/client-config.json` |
+| Linux/GK50 | `/home/hermes/status/config/client-config.json` | `/run/secrets/serverstatus/client-config.json` |
+| Synology DSM | `/volume1/docker/status/config/client-config.json` | `/run/secrets/serverstatus/client-config.json` |
 
 Mount the Device v2 token separately at
-`/run/secrets/hermesstatus-device-token`. Keep configuration, token, CA,
+`/run/secrets/serverstatus-device-token`. Keep configuration, token, CA,
 UniFi password/API-key/known-hosts, and Lucky token files root-owned regular
 files with restrictive permissions and read-only mounts. Do not print their
 contents during diagnosis.

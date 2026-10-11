@@ -1,7 +1,8 @@
 # 架构
 
-HardwareStatus 是一个只有一份浏览器权威投影的只读监控系统。公开仓库已更名为
-HardwareStatus；现有 `hermesstatus` 运行时命名空间仍是兼容边界。
+ServerStatus 是一个只有一份浏览器权威投影的只读监控系统。源码仓库地址仍为
+[404404/HardwareStatus](https://github.com/404404/HardwareStatus)。新运行时接口使用
+`serverstatus` 命名空间；旧部署标识仅在明确的兼容入口接受。
 
 ```text
 已授权的主机输入 → Python Client → Device v2 HTTPS → Go Server
@@ -62,6 +63,6 @@ Client 仅通过显式 profile 选择固定只读 SSH/API source。profile 选�
 
 ## 明确不在范围内
 
-HardwareStatus 不是远程 shell、EasyTier/UniFi/Lucky 管理器、自动注册服务、网络扫描器、
+ServerStatus 不是远程 shell、EasyTier/UniFi/Lucky 管理器、自动注册服务、网络扫描器、
 告警系统、时序数据库或任意命令/路径执行器。Server 不读取 Docker socket、采集器秘密、
 原始 Client 配置或原始远端响应。

@@ -413,11 +413,18 @@ def collect_client_build(environ=None, protocol=None):
     to be rejected by the strict server-side contract.
     """
     environment = os.environ if environ is None else environ
+
+    def build_value(name):
+        value = environment.get(name)
+        if value is None and name.startswith("SERVERSTATUS_"):
+            value = environment.get(name.replace("SERVERSTATUS_", "HERMESSTATUS_", 1))
+        return value
+
     values = {
-        "version": _nullable_text(environment.get("HERMESSTATUS_CLIENT_VERSION"), 64),
-        "revision": _nullable_text(environment.get("HERMESSTATUS_CLIENT_REVISION"), 64),
-        "build_time": _nullable_text(environment.get("HERMESSTATUS_CLIENT_BUILD_TIME"), 64),
-        "protocol": _nullable_text(protocol or environment.get("HERMESSTATUS_CLIENT_PROTOCOL"), 64),
+        "version": _nullable_text(build_value("SERVERSTATUS_CLIENT_VERSION"), 64),
+        "revision": _nullable_text(build_value("SERVERSTATUS_CLIENT_REVISION"), 64),
+        "build_time": _nullable_text(build_value("SERVERSTATUS_CLIENT_BUILD_TIME"), 64),
+        "protocol": _nullable_text(protocol or build_value("SERVERSTATUS_CLIENT_PROTOCOL"), 64),
     }
     if not all(values[key] is not None for key in ("version", "revision", "protocol")):
         return None

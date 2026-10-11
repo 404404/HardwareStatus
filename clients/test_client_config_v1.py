@@ -5,12 +5,14 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 CLIENT_DIR = Path(__file__).resolve().parent
 if str(CLIENT_DIR) not in sys.path:
     sys.path.insert(0, str(CLIENT_DIR))
 
-from client_config_v1 import materialize_unified_collectors
+from client_config_v1 import _runtime_secret_root, materialize_unified_collectors
 from multi_device_contracts import ClientContractError, parse_config_json, resolve_client_config
 
 
@@ -51,11 +53,30 @@ def document():
 
 
 class UnifiedClientConfigTests(unittest.TestCase):
+    def test_runtime_secret_root_prefers_new_mount_then_legacy_mount(self):
+        directory = SimpleNamespace(st_mode=stat.S_IFDIR | 0o700)
+
+        def legacy_only(path):
+            if path == "/run/hermesstatus":
+                return directory
+            raise FileNotFoundError(path)
+
+        with patch("client_config_v1.os.lstat", side_effect=legacy_only):
+            self.assertEqual(_runtime_secret_root(), "/run/hermesstatus")
+
+        def new_mount(path):
+            if path == "/run/serverstatus":
+                return directory
+            raise FileNotFoundError(path)
+
+        with patch("client_config_v1.os.lstat", side_effect=new_mount):
+            self.assertEqual(_runtime_secret_root(), "/run/serverstatus")
+
     def test_strict_schema_and_mapping(self):
         config = resolve_client_config(file_values=parse_config_json(json.dumps(document())))
         self.assertEqual(config.device_id, "gk50")
         self.assertEqual(config.collection_interval_seconds, 30)
-        self.assertEqual(config.token_file, "/run/secrets/hermesstatus-device-token")
+        self.assertEqual(config.token_file, "/run/secrets/serverstatus-device-token")
         self.assertEqual(config.filesystem_probes[0].probe_path, "/home/hermes")
         self.assertTrue(config.unified_collectors["lucky"]["enabled"])
 

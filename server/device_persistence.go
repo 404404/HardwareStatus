@@ -601,7 +601,7 @@ func (paths *openedPersistencePaths) atomicWrite(
 	data []byte,
 	mode os.FileMode,
 ) error {
-	tmpName, err := randomPersistenceName(".hermesstatus-state-", ".tmp")
+	tmpName, err := randomPersistenceName(".serverstatus-state-", ".tmp")
 	if err != nil {
 		return err
 	}

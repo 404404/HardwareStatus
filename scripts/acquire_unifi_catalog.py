@@ -144,7 +144,7 @@ def _provenance_bytes(lock: dict[str, Any]) -> bytes:
 def acquire(source_dir: Path, output_dir: Path, lock_path: Path) -> dict[str, Any]:
     lock = load_lock(lock_path)
     verify_checkout(source_dir, lock)
-    with tempfile.TemporaryDirectory(prefix="hermesstatus-catalog-build-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="serverstatus-catalog-build-") as temporary:
         temporary_path = Path(temporary)
         first = temporary_path / "one"
         second = temporary_path / "two"

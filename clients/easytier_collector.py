@@ -1,4 +1,4 @@
-"""Strict, read-only EasyTier collector for HardwareStatus.
+"""Strict, read-only EasyTier collector for ServerStatus.
 
 The module deliberately accepts only the five inspection commands documented in
 the 2.5 contract. It never asks EasyTier for its configuration or credentials,

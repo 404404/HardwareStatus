@@ -1,12 +1,16 @@
 # 部署
 
-只能部署已记录 candidate 的 GitHub CI 不可变镜像。仓库已更名，但当前已发布包名仍特意保留
-`hermesstatus-server` 与 `hermesstatus-client`。
+只能部署已记录 candidate 的 GitHub CI 不可变镜像。新的 ServerStatus candidate 使用
+`serverstatus-server` 与 `serverstatus-client` GHCR 包。已部署的旧 HermesStatus 镜像仍是独立历史
+制品，不会因源码更名而重新打标签。
 
 ```yaml
-image: ghcr.io/404404/hermesstatus-server@sha256:<已批准的-server-digest>
-image: ghcr.io/404404/hermesstatus-client@sha256:<已批准的-client-digest>
+image: ghcr.io/404404/serverstatus-server@sha256:<已批准的-server-digest>
+image: ghcr.io/404404/serverstatus-client@sha256:<已批准的-client-digest>
 ```
+
+Compose 容器名使用 `serverstatus-server-2x` 和 `serverstatus-client-2x`。仓库/服务更名、旧接口
+兼容与回滚约束见[更名迁移说明](NAME_MIGRATION.md)。
 
 不得改用 `latest`、宽泛版本 tag 或本地 build。任何变更前，确认每个 image 的 OCI revision
 等于已批准源码 SHA；含 UniFi 的 Client 还须核对 candidate 记录中的 Catalog revision 与 bundle

@@ -5,7 +5,7 @@
     "verify_tls": true,
     "connect_timeout_seconds": 10,
     "read_timeout_seconds": 30,
-    "ca_file": "/run/secrets/hermesstatus/ca.crt"
+    "ca_file": "/run/secrets/serverstatus/ca.crt"
   },
   "device": {
     "id": "synology-client",

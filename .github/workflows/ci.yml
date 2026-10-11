@@ -104,7 +104,7 @@ jobs:
           file: Dockerfile.server
           push: false
           load: true
-          tags: hermesstatus-server:${{ steps.provenance.outputs.candidate_tag }}
+          tags: serverstatus-server:${{ steps.provenance.outputs.candidate_tag }}
           build-args: |
             VERSION=${{ steps.provenance.outputs.product_version }}
             VCS_REF=${{ steps.provenance.outputs.vcs_ref }}
@@ -112,14 +112,14 @@ jobs:
             SOURCE_URL=${{ steps.provenance.outputs.source }}
           cache-from: type=gha,scope=server
           cache-to: type=gha,mode=max,scope=server
-      - run: docker image inspect hermesstatus-server:${{ steps.provenance.outputs.candidate_tag }} --format '{{json .Config.Entrypoint}}' | grep serverstatus
+      - run: docker image inspect serverstatus-server:${{ steps.provenance.outputs.candidate_tag }} --format '{{json .Config.Entrypoint}}' | grep serverstatus
       - uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.client
           push: false
           load: true
-          tags: hermesstatus-client:${{ steps.provenance.outputs.candidate_tag }}
+          tags: serverstatus-client:${{ steps.provenance.outputs.candidate_tag }}
           build-args: |
             VERSION=${{ steps.provenance.outputs.product_version }}
             VCS_REF=${{ steps.provenance.outputs.vcs_ref }}
@@ -127,12 +127,12 @@ jobs:
             SOURCE_URL=${{ steps.provenance.outputs.source }}
           cache-from: type=gha,scope=client
           cache-to: type=gha,mode=max,scope=client
-      - run: docker image inspect hermesstatus-client:${{ steps.provenance.outputs.candidate_tag }} --format '{{json .Config.Entrypoint}}' | grep entrypoint.sh
+      - run: docker image inspect serverstatus-client:${{ steps.provenance.outputs.candidate_tag }} --format '{{json .Config.Entrypoint}}' | grep entrypoint.sh
       - name: Validate image provenance
         run: |
           python3 scripts/validate_image_provenance.py \
-            --server-image hermesstatus-server:${{ steps.provenance.outputs.candidate_tag }} \
-            --client-image hermesstatus-client:${{ steps.provenance.outputs.candidate_tag }} \
+            --server-image serverstatus-server:${{ steps.provenance.outputs.candidate_tag }} \
+            --client-image serverstatus-client:${{ steps.provenance.outputs.candidate_tag }} \
             --candidate-tag "${{ steps.provenance.outputs.candidate_tag }}" \
             --version "${{ steps.provenance.outputs.product_version }}" \
             --revision "${{ steps.provenance.outputs.vcs_ref }}" \
@@ -172,7 +172,7 @@ jobs:
           SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           candidate_tag=$(printf '2.6-%.12s' "$SOURCE_SHA")
-          for image in ghcr.io/${{ github.repository_owner }}/hermesstatus-server:$candidate_tag ghcr.io/${{ github.repository_owner }}/hermesstatus-client:$candidate_tag; do
+          for image in ghcr.io/${{ github.repository_owner }}/serverstatus-server:$candidate_tag ghcr.io/${{ github.repository_owner }}/serverstatus-client:$candidate_tag; do
             if docker buildx imagetools inspect "$image" >/dev/null 2>&1; then
               echo "refusing to overwrite existing immutable candidate: $image"
               exit 1
@@ -187,14 +187,14 @@ jobs:
           file: Dockerfile.server
           push: true
           platforms: linux/amd64
-          tags: ghcr.io/${{ github.repository_owner }}/hermesstatus-server:${{ steps.provenance.outputs.candidate_tag }}
+          tags: ghcr.io/${{ github.repository_owner }}/serverstatus-server:${{ steps.provenance.outputs.candidate_tag }}
           labels: |
-            org.opencontainers.image.title=HardwareStatus Server
+            org.opencontainers.image.title=ServerStatus Server
             org.opencontainers.image.version=2.6
             org.opencontainers.image.revision=${{ steps.provenance.outputs.vcs_ref }}
             org.opencontainers.image.created=${{ steps.provenance.outputs.build_date }}
             org.opencontainers.image.source=https://github.com/404404/HardwareStatus
-            io.hermesstatus.component=server
+            io.serverstatus.component=server
           build-args: |
             VERSION=2.6
             VCS_REF=${{ steps.provenance.outputs.vcs_ref }}
@@ -206,14 +206,14 @@ jobs:
           file: Dockerfile.client
           push: true
           platforms: linux/amd64
-          tags: ghcr.io/${{ github.repository_owner }}/hermesstatus-client:${{ steps.provenance.outputs.candidate_tag }}
+          tags: ghcr.io/${{ github.repository_owner }}/serverstatus-client:${{ steps.provenance.outputs.candidate_tag }}
           labels: |
-            org.opencontainers.image.title=HardwareStatus Client
+            org.opencontainers.image.title=ServerStatus Client
             org.opencontainers.image.version=2.6
             org.opencontainers.image.revision=${{ steps.provenance.outputs.vcs_ref }}
             org.opencontainers.image.created=${{ steps.provenance.outputs.build_date }}
             org.opencontainers.image.source=https://github.com/404404/HardwareStatus
-            io.hermesstatus.component=client
+            io.serverstatus.component=client
           build-args: |
             VERSION=2.6
             VCS_REF=${{ steps.provenance.outputs.vcs_ref }}

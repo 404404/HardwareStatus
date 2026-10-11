@@ -57,16 +57,16 @@ class ClientV2ConfigContractTests(unittest.TestCase):
         self.assertTrue(config.verify_tls)
         self.assertEqual(
             config.token_file,
-            "/run/secrets/hermesstatus-device-token",
+            "/run/secrets/serverstatus-device-token",
         )
 
     def test_cli_over_env_over_file_over_defaults(self):
         config = resolve_client_config(
             file_values=self.file_values,
             env={
-                "HERMESSTATUS_SERVER_URL": "https://env.example.invalid",
-                "HERMESSTATUS_DEVICE_NAME": "Synthetic Env",
-                "HERMESSTATUS_CONNECT_TIMEOUT_SECONDS": "20",
+                "SERVERSTATUS_SERVER_URL": "https://env.example.invalid",
+                "SERVERSTATUS_DEVICE_NAME": "Synthetic Env",
+                "SERVERSTATUS_CONNECT_TIMEOUT_SECONDS": "20",
             },
             cli={
                 "server_url": "https://cli.example.invalid",
@@ -81,7 +81,7 @@ class ClientV2ConfigContractTests(unittest.TestCase):
     def test_partial_v2_fails_closed_without_legacy_fallback(self):
         with self.assertRaisesRegex(ClientContractError, "incomplete v2"):
             resolve_client_config(
-                env={"HERMESSTATUS_SERVER_URL": "https://status.example.invalid"}
+                env={"SERVERSTATUS_SERVER_URL": "https://status.example.invalid"}
             )
         with self.assertRaises(ClientContractError):
             resolve_client_config(

@@ -370,7 +370,7 @@ func TestHardwareObservabilityPersistenceRestoresClientBuild(t *testing.T) {
 
 func TestServerBuildInfoIsSafeAndStatsProjected(t *testing.T) {
 	previousVersion, previousCommit, previousBuildTime := version, commit, buildTime
-	t.Setenv("HERMESSTATUS_DEPLOYMENT_ENV", "staging")
+	t.Setenv("SERVERSTATUS_DEPLOYMENT_ENV", "staging")
 	defer func() { version, commit, buildTime = previousVersion, previousCommit, previousBuildTime }()
 	version, commit, buildTime = "2.5", strings.Repeat("b", 40), "2026-07-28T12:00:00Z"
 	build := serverBuildInfo()
@@ -380,6 +380,18 @@ func TestServerBuildInfoIsSafeAndStatsProjected(t *testing.T) {
 	stats := newTestApp(t, minimalTestConfig()).SnapshotStats()
 	if _, ok := stats["build"].(ServerBuildInfo); !ok {
 		t.Fatalf("stats omitted server build metadata: %#v", stats)
+	}
+}
+
+func TestServerStatusEnvironmentPrefixCompatibility(t *testing.T) {
+	t.Setenv("SERVERSTATUS_DEPLOYMENT_ENV", "")
+	t.Setenv("HERMESSTATUS_DEPLOYMENT_ENV", "preview")
+	if got := deploymentEnvironment(); got != "preview" {
+		t.Fatalf("legacy environment prefix was not accepted: %q", got)
+	}
+	t.Setenv("SERVERSTATUS_DEPLOYMENT_ENV", "staging")
+	if got := deploymentEnvironment(); got != "staging" {
+		t.Fatalf("canonical environment prefix did not take precedence: %q", got)
 	}
 }
 

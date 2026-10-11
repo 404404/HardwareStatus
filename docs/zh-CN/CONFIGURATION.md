@@ -1,7 +1,8 @@
 # 配置
 
-HardwareStatus 配置显式且 fail-closed。公开项目名称为 HardwareStatus；
-`HERMESSTATUS_CONFIG_FILE` 等兼容路径和变量保持不变。
+ServerStatus 配置显式且 fail-closed。新部署统一使用 `SERVERSTATUS_*` 环境变量前缀、
+`/etc/serverstatus` 和 `/run/secrets/serverstatus` 路径。升级后的 Client 仍能读取旧前缀和旧挂载
+路径，供现场分阶段迁移；详见[更名迁移说明](NAME_MIGRATION.md)。
 
 ## Server 与 Device Registry
 
@@ -20,16 +21,16 @@ Device token、Server admin token 或 CA 私钥写入仓库、环境变量、命
 
 ## 统一 Client 配置
 
-新部署使用由 `HERMESSTATUS_CONFIG_FILE` 选择的严格 JSON，惯例只读挂载到
-`/run/secrets/hermesstatus/client-config.json`。Device v2 token 单独只读挂载到
-`/run/secrets/hermesstatus-device-token`。
+新部署使用由 `SERVERSTATUS_CONFIG_FILE` 选择的严格 JSON，惯例只读挂载到
+`/run/secrets/serverstatus/client-config.json`。Device v2 token 单独只读挂载到
+`/run/secrets/serverstatus-device-token`。
 
 文档使用 `schema_version: 1`，并显式声明 `server`、`device`、`collection` 与
 `collectors`。未知字段、未知采集 source、任意命令字段和任意 probe path 都会被拒绝。Legacy
 `client-v2.json` 仅用于有计划的回滚，不应与 unified 配置混用。
 
 使用 root-owned、`0600`（或更严格）常规文件和只读挂载。采集器秘密只在 Client 私有
-`/run/hermesstatus` tmpfs 中短暂 materialize，不得出现在环境变量、参数、遥测、日志、fixture
+`/run/serverstatus` tmpfs 中短暂 materialize，不得出现在环境变量、参数、遥测、日志、fixture
 或 UI。
 
 ## 硬件与 Docker

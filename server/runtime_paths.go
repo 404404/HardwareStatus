@@ -250,7 +250,7 @@ func (paths *openedPersistencePaths) validateEntry(name string) (*unix.Stat_t, e
 }
 
 func (paths *openedPersistencePaths) probeWritableDirectory() error {
-	name, err := randomPersistenceName(".hermesstatus-preflight-", ".tmp")
+	name, err := randomPersistenceName(".serverstatus-preflight-", ".tmp")
 	if err != nil {
 		return err
 	}

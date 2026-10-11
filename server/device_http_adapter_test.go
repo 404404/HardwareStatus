@@ -386,8 +386,18 @@ func TestDeviceEndpointHTTPValidationMatrix(t *testing.T) {
 		{"invalid-device-header", validBody, testCurrentToken, "INVALID ID", nil, http.StatusBadRequest},
 		{"ip-device-header", validBody, testCurrentToken, "192.0.2.10", nil, http.StatusBadRequest},
 		{"missing-device-header", validBody, testCurrentToken, "", nil, http.StatusBadRequest},
+		{"legacy-device-header", validBody, testCurrentToken, "device-alpha", func(request *http.Request) {
+			request.Header.Del("X-ServerStatus-Device-ID")
+			request.Header.Set("X-HermesStatus-Device-ID", "device-alpha")
+		}, http.StatusAccepted},
+		{"matching-device-header-aliases", validBody, testCurrentToken, "device-alpha", func(request *http.Request) {
+			request.Header.Set("X-HermesStatus-Device-ID", "device-alpha")
+		}, http.StatusAccepted},
+		{"conflicting-device-header-aliases", validBody, testCurrentToken, "device-alpha", func(request *http.Request) {
+			request.Header.Set("X-HermesStatus-Device-ID", "device-beta")
+		}, http.StatusBadRequest},
 		{"duplicate-device-header", validBody, testCurrentToken, "device-alpha", func(request *http.Request) {
-			request.Header["X-HermesStatus-Device-ID"] = []string{"device-alpha", "device-alpha"}
+			request.Header["X-ServerStatus-Device-ID"] = []string{"device-alpha", "device-alpha"}
 		}, http.StatusBadRequest},
 		{"next-token", validBody, testNextToken, "device-alpha", nil, http.StatusAccepted},
 		{"missing-token", validBody, "", "device-alpha", nil, http.StatusUnauthorized},
@@ -1891,7 +1901,7 @@ func setDeviceHeaders(request *http.Request, token string, deviceID string) {
 		request.Header.Set("Authorization", "Bearer "+token)
 	}
 	if deviceID != "" {
-		request.Header.Set("X-HermesStatus-Device-ID", deviceID)
+		request.Header.Set("X-ServerStatus-Device-ID", deviceID)
 	}
 }
 

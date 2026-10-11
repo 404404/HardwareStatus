@@ -1,4 +1,4 @@
-# HardwareStatus 文档
+# ServerStatus 文档
 
 [English documentation](../README.md) · [仓库](https://github.com/404404/HardwareStatus)
 
@@ -6,8 +6,9 @@
 改进。它们说明当前源码行为，不代表新的稳定版发布，也不能替代候选镜像 provenance
 要求。
 
-仓库公开名称为 HardwareStatus。为保证现有部署兼容，所有以 `hermesstatus` 开头的运行时
-名称仍保持不变，详见根目录 [README](../../README.md)。
+产品名为 ServerStatus，源码仓库地址仍是
+[404404/HardwareStatus](https://github.com/404404/HardwareStatus)。修改已有部署前请先阅读
+[更名迁移说明](NAME_MIGRATION.md)。
 
 | 文档 | 内容 |
 | --- | --- |
@@ -15,6 +16,7 @@
 | [配置](CONFIGURATION.md) | Server、Device v2、统一 Client、可选采集器与兼容名称。 |
 | [设备配置](DEVICE_CONFIGURATION.md) | Registry 身份、凭据文件、严格配置与已审核挂载。 |
 | [部署](DEPLOYMENT.md) | 不可变镜像、升级顺序、验证、持久化与回滚。 |
+| [更名迁移](NAME_MIGRATION.md) | 新名称、旧部署兼容及安全迁移/回滚。 |
 | [安全](SECURITY.md) | 信任边界、秘密、TLS/SSH 与最小权限。 |
 | [运维](OPERATIONS.md) | freshness、诊断、备份恢复与排障。 |
 | [开发](DEVELOPMENT.md) | 检查、文档要求与 PR 流程。 |

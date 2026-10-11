@@ -1,17 +1,17 @@
-# HardwareStatus
+# ServerStatus
 
 [English](README_EN.md) · [中文文档](docs/zh-CN/README.md) · [English docs](docs/README.md) · [GitHub](https://github.com/404404/HardwareStatus)
 
-HardwareStatus 是一个自托管、多设备、只读的状态与硬件观测系统。Python
+ServerStatus（GitHub 仓库仍名为 HardwareStatus）是一个自托管、多设备、只读的状态与硬件观测系统。Python
 Client 在主机边界采集经过显式授权的观测；Go Server 严格校验、持久化并生成
 唯一的 `/json/stats.json` 投影；浏览器从该投影展示主机、硬件、Docker、Hermes、
 Lucky、EasyTier、UniFi 与组件诊断。
 
-> **命名兼容性**：GitHub 仓库与公开文档名称为 **HardwareStatus**。为了不破坏
-> 已部署环境，当前二进制 `serverstatus`、`HERMESSTATUS_*` 环境变量、
-> `/etc/hermesstatus` 与 `/run/secrets/hermesstatus` 路径，以及
-> `ghcr.io/404404/hermesstatus-server` / `hermesstatus-client` 镜像包名保持不变。
-> 这些是兼容接口，不是应替换成新字符串的配置项。
+> **命名与升级兼容**：产品名、网页、容器名及新候选镜像包统一使用 **ServerStatus**；GitHub
+> 仓库地址仍是 `404404/HardwareStatus`。新部署使用 `SERVERSTATUS_*`、`/etc/serverstatus`、
+> `/run/secrets/serverstatus` 和 `ghcr.io/404404/serverstatus-server` /
+> `serverstatus-client`。新版本仍兼容旧部署的配置前缀、挂载路径和 Device v2 身份头；具体迁移
+> 见[更名迁移说明](docs/zh-CN/NAME_MIGRATION.md)。
 
 ## 能力与边界
 
@@ -53,9 +53,12 @@ Server 不读取 Docker socket、Client 原始配置、凭据、EasyTier 原始�
 生产与资格验证使用 GitHub CI 构建的不可变镜像引用：
 
 ```yaml
-image: ghcr.io/404404/hermesstatus-server@sha256:<已批准的 server digest>
-image: ghcr.io/404404/hermesstatus-client@sha256:<同一源码 revision 的 client digest>
+image: ghcr.io/404404/serverstatus-server@sha256:<已批准的 server digest>
+image: ghcr.io/404404/serverstatus-client@sha256:<同一源码 revision 的 client digest>
 ```
+
+Compose 容器名为 `serverstatus-server-2x` 和 `serverstatus-client-2x`（根目录开发
+Compose 使用 `serverstatus-server` / `serverstatus-client`）。
 
 不要以 `latest`、宽泛版本标签或本地 `--build` 替代已经批准的 digest。部署前核验：
 
@@ -87,7 +90,7 @@ devices: [/dev/sda:/dev/sda:r]
 ## 文档与验证
 
 - [架构](docs/zh-CN/ARCHITECTURE.md) · [配置](docs/zh-CN/CONFIGURATION.md) · [部署](docs/zh-CN/DEPLOYMENT.md)
-- [安全](docs/zh-CN/SECURITY.md) · [运维](docs/zh-CN/OPERATIONS.md) · [开发](docs/zh-CN/DEVELOPMENT.md)
+- [安全](docs/zh-CN/SECURITY.md) · [运维](docs/zh-CN/OPERATIONS.md) · [开发](docs/zh-CN/DEVELOPMENT.md) · [更名迁移](docs/zh-CN/NAME_MIGRATION.md)
 - [Device v2 配置](docs/zh-CN/DEVICE_CONFIGURATION.md) · [统一 Client 配置](docs/UNIFIED_CLIENT_CONFIG.md)
 - [EasyTier](docs/zh-CN/EASYTIER_MONITORING.md) · [硬件](docs/zh-CN/HARDWARE_MONITORING.md) · [UniFi](docs/zh-CN/UNIFI_MONITORING.md)
 

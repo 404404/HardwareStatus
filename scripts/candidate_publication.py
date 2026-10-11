@@ -42,7 +42,7 @@ def _base_provenance(labels: dict[str, Any], *, version: str, revision: str, com
         {
             "org.opencontainers.image.version": version,
             "org.opencontainers.image.revision": revision,
-            "io.hermesstatus.component": component,
+            "io.serverstatus.component": component,
         },
     )
 
@@ -78,19 +78,19 @@ def published_candidate_is_valid(
     if not _label_matches(
         client_labels,
         {
-            "io.hermesstatus.unifi.catalog.revision": catalog_revision,
-            "io.hermesstatus.unifi.catalog.schema_version": str(catalog_schema_version),
-            "io.hermesstatus.unifi.catalog.sha256": catalog_sha256,
+            "io.serverstatus.unifi.catalog.revision": catalog_revision,
+            "io.serverstatus.unifi.catalog.schema_version": str(catalog_schema_version),
+            "io.serverstatus.unifi.catalog.sha256": catalog_sha256,
         },
     ):
         return False
     values = _env_values(client_env)
     expected = {
-        "HERMESSTATUS_CLIENT_VERSION": version,
-        "HERMESSTATUS_CLIENT_REVISION": revision,
-        "HERMESSTATUS_UNIFI_CATALOG_REVISION": catalog_revision,
-        "HERMESSTATUS_UNIFI_CATALOG_SCHEMA_VERSION": str(catalog_schema_version),
-        "HERMESSTATUS_UNIFI_CATALOG_SHA256": catalog_sha256,
+        "SERVERSTATUS_CLIENT_VERSION": version,
+        "SERVERSTATUS_CLIENT_REVISION": revision,
+        "SERVERSTATUS_UNIFI_CATALOG_REVISION": catalog_revision,
+        "SERVERSTATUS_UNIFI_CATALOG_SCHEMA_VERSION": str(catalog_schema_version),
+        "SERVERSTATUS_UNIFI_CATALOG_SHA256": catalog_sha256,
     }
     return all(values.get(key) == value for key, value in expected.items())
 

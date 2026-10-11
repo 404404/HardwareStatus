@@ -89,6 +89,7 @@ class UniFiSSHTransportTests(unittest.TestCase):
                 _run_fixed("printf fixed", self._config(handle.name))
             environment = run.call_args.kwargs["env"]
             self.assertEqual(environment["SSH_ASKPASS"], ASKPASS_PATH)
+            self.assertEqual(environment["SERVERSTATUS_UNIFI_CREDENTIAL_FILE"], handle.name)
             self.assertEqual(environment["HERMESSTATUS_UNIFI_CREDENTIAL_FILE"], handle.name)
             self.assertNotIn("prompt-secret", " ".join(str(value) for value in environment.values()))
 

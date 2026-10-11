@@ -84,12 +84,11 @@ func (a *App) deviceUpdateHandler(c *gin.Context) {
 		return
 	}
 
-	headerValues := exactHeaderValues(c.Request.Header, "X-HermesStatus-Device-ID")
-	if len(headerValues) != 1 || !validDeviceHeaderID(headerValues[0]) {
+	headerDeviceID, validHeader := deviceIDHeaderValue(c.Request.Header)
+	if !validHeader {
 		a.writeDeviceError(c, &audit, http.StatusBadRequest, "invalid_device_header", 0)
 		return
 	}
-	headerDeviceID := headerValues[0]
 	audit.DeviceRef = deviceAuditRef(headerDeviceID)
 	registryDevice, registered := a.registryDevice(headerDeviceID)
 	credentialSet, credentialExists := a.deviceCredentials[headerDeviceID]
@@ -222,6 +221,27 @@ func exactHeaderValues(header http.Header, name string) []string {
 		}
 	}
 	return values
+}
+
+func deviceIDHeaderValue(header http.Header) (string, bool) {
+	current := exactHeaderValues(header, "X-ServerStatus-Device-ID")
+	legacy := exactHeaderValues(header, "X-HermesStatus-Device-ID")
+	if len(current) > 1 || len(legacy) > 1 {
+		return "", false
+	}
+	if len(current) == 0 && len(legacy) == 0 {
+		return "", false
+	}
+	if len(current) == 1 && len(legacy) == 1 && current[0] != legacy[0] {
+		return "", false
+	}
+	value := ""
+	if len(current) == 1 {
+		value = current[0]
+	} else {
+		value = legacy[0]
+	}
+	return value, validDeviceHeaderID(value)
 }
 
 func (a *App) registryDevice(deviceID string) (contracts.RegistryDevice, bool) {

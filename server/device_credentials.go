@@ -26,7 +26,7 @@ const (
 )
 
 var dummyDeviceCredentialDigest = sha256.Sum256(
-	[]byte("HermesStatus fixed dummy device credential digest"),
+	[]byte("ServerStatus fixed dummy device credential digest"),
 )
 
 type deviceCredentialSlot struct {

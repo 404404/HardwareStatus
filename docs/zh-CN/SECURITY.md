@@ -1,7 +1,7 @@
 # 安全
 
-HardwareStatus 被设计为只读。仓库更名不改变已部署环境的 `hermesstatus` 凭据路径、环境变量或
-镜像包名。
+ServerStatus 被设计为只读。产品更名不改变 Device v2 identity、token digest、TLS 校验或 replay
+protection。新凭据路径使用 `/run/secrets/serverstatus`；仅当旧路径被现有部署显式挂载时才继续接受。
 
 ## 身份与秘密
 

@@ -34,24 +34,24 @@ def client_config():
     return {
         "Entrypoint": ["/app/entrypoint.sh"],
         "Labels": {
-            "org.opencontainers.image.title": "HardwareStatus Client",
+            "org.opencontainers.image.title": "ServerStatus Client",
             "org.opencontainers.image.version": "2.7",
             "org.opencontainers.image.revision": REVISION,
             "org.opencontainers.image.created": CREATED,
             "org.opencontainers.image.source": "https://github.com/404404/HardwareStatus",
             "org.opencontainers.image.licenses": "MIT",
-            "io.hermesstatus.component": "client",
-            "io.hermesstatus.unifi.catalog.revision": CATALOG_REVISION,
-            "io.hermesstatus.unifi.catalog.schema_version": "1",
-            "io.hermesstatus.unifi.catalog.sha256": CATALOG_SHA256,
+            "io.serverstatus.component": "client",
+            "io.serverstatus.unifi.catalog.revision": CATALOG_REVISION,
+            "io.serverstatus.unifi.catalog.schema_version": "1",
+            "io.serverstatus.unifi.catalog.sha256": CATALOG_SHA256,
         },
         "Env": [
-            "HERMESSTATUS_CLIENT_VERSION=2.7",
-            "HERMESSTATUS_CLIENT_REVISION=" + REVISION,
-            "HERMESSTATUS_CLIENT_BUILD_TIME=" + CREATED,
-            "HERMESSTATUS_UNIFI_CATALOG_REVISION=" + CATALOG_REVISION,
-            "HERMESSTATUS_UNIFI_CATALOG_SCHEMA_VERSION=1",
-            "HERMESSTATUS_UNIFI_CATALOG_SHA256=" + CATALOG_SHA256,
+            "SERVERSTATUS_CLIENT_VERSION=2.7",
+            "SERVERSTATUS_CLIENT_REVISION=" + REVISION,
+            "SERVERSTATUS_CLIENT_BUILD_TIME=" + CREATED,
+            "SERVERSTATUS_UNIFI_CATALOG_REVISION=" + CATALOG_REVISION,
+            "SERVERSTATUS_UNIFI_CATALOG_SCHEMA_VERSION=1",
+            "SERVERSTATUS_UNIFI_CATALOG_SHA256=" + CATALOG_SHA256,
         ],
     }
 
@@ -59,10 +59,10 @@ def client_config():
 def server_config():
     config = copy.deepcopy(client_config())
     config["Entrypoint"] = ["/usr/local/bin/serverstatus"]
-    config["Labels"]["org.opencontainers.image.title"] = "HardwareStatus Server"
-    config["Labels"]["io.hermesstatus.component"] = "server"
+    config["Labels"]["org.opencontainers.image.title"] = "ServerStatus Server"
+    config["Labels"]["io.serverstatus.component"] = "server"
     for key in tuple(config["Labels"]):
-        if key.startswith("io.hermesstatus.unifi.catalog."):
+        if key.startswith("io.serverstatus.unifi.catalog."):
             del config["Labels"][key]
     config["Env"] = []
     return config
@@ -121,7 +121,7 @@ class CatalogProvenanceTests(unittest.TestCase):
         )
         broken = client_config()
         broken["Labels"] = dict(broken["Labels"])
-        broken["Labels"]["io.hermesstatus.unifi.catalog.sha256"] = "d" * 64
+        broken["Labels"]["io.serverstatus.unifi.catalog.sha256"] = "d" * 64
         with self.assertRaises(PROVENANCE.ValidationError):
             PROVENANCE.validate_catalog_provenance(
                 broken,

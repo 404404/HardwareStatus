@@ -108,9 +108,11 @@ def _run_fixed(remote_script, config):
     env.update({
         "SSH_ASKPASS": askpass,
         "SSH_ASKPASS_REQUIRE": "force",
-        "DISPLAY": "hermesstatus-unifi",
+        "DISPLAY": "serverstatus-unifi",
         # This is a path, never the credential value. The bundled askpass
         # executable reads the already-validated file only for the prompt.
+        "SERVERSTATUS_UNIFI_CREDENTIAL_FILE": config.credential_file,
+        # The askpass helper shipped by an earlier image reads this key.
         "HERMESSTATUS_UNIFI_CREDENTIAL_FILE": config.credential_file,
     })
     # _run_bounded() already starts the fixed command in a new session so its

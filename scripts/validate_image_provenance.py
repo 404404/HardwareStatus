@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate immutable HardwareStatus image identity without exposing build inputs."""
+"""Validate immutable ServerStatus image identity without exposing build inputs."""
 
 import argparse
 import datetime as dt
@@ -22,7 +22,7 @@ SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 CATALOG_SHA_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 PRODUCT_VERSION_PATTERN = re.compile(r"^(?:2\.5|2\.6|2\.7)$")
 CANDIDATE_TAG_PATTERN = re.compile(r"^(?P<version>2\.5|2\.6|2\.7)-(?P<revision>[0-9a-f]{12})$")
-COMPONENT_LABEL = "io.hermesstatus.component"
+COMPONENT_LABEL = "io.serverstatus.component"
 SECRET_PATTERN = re.compile(
     r"(?i)(authorization\s*:|bearer\s+|api[_-]?key|password|private[_-]?key|token[_-]?secret)"
 )
@@ -78,9 +78,9 @@ def environment_values(config: dict) -> dict:
 def validate_client_runtime(config: dict, *, version: str, revision: str, created: str) -> None:
     values = environment_values(config)
     expected = {
-        "HERMESSTATUS_CLIENT_VERSION": version,
-        "HERMESSTATUS_CLIENT_REVISION": revision,
-        "HERMESSTATUS_CLIENT_BUILD_TIME": created,
+        "SERVERSTATUS_CLIENT_VERSION": version,
+        "SERVERSTATUS_CLIENT_REVISION": revision,
+        "SERVERSTATUS_CLIENT_BUILD_TIME": created,
     }
     for key, value in expected.items():
         if values.get(key) != value:
@@ -89,18 +89,18 @@ def validate_client_runtime(config: dict, *, version: str, revision: str, create
 def validate_catalog_provenance(config: dict, *, revision: str, schema_version: int, sha256: str) -> None:
     labels = config.get("Labels") or {}
     expected_labels = {
-        "io.hermesstatus.unifi.catalog.revision": revision,
-        "io.hermesstatus.unifi.catalog.schema_version": str(schema_version),
-        "io.hermesstatus.unifi.catalog.sha256": sha256,
+        "io.serverstatus.unifi.catalog.revision": revision,
+        "io.serverstatus.unifi.catalog.schema_version": str(schema_version),
+        "io.serverstatus.unifi.catalog.sha256": sha256,
     }
     for key, value in expected_labels.items():
         if labels.get(key) != value:
             raise ValidationError("client Catalog label %s does not match the build input" % key)
     values = environment_values(config)
     expected_environment = {
-        "HERMESSTATUS_UNIFI_CATALOG_REVISION": revision,
-        "HERMESSTATUS_UNIFI_CATALOG_SCHEMA_VERSION": str(schema_version),
-        "HERMESSTATUS_UNIFI_CATALOG_SHA256": sha256,
+        "SERVERSTATUS_UNIFI_CATALOG_REVISION": revision,
+        "SERVERSTATUS_UNIFI_CATALOG_SCHEMA_VERSION": str(schema_version),
+        "SERVERSTATUS_UNIFI_CATALOG_SHA256": sha256,
     }
     for key, value in expected_environment.items():
         if values.get(key) != value:
@@ -225,7 +225,7 @@ def main() -> int:
         client_inspect = inspect_image(args.client_image)
         server = validate_inspect(
             server_inspect,
-            expected_title="HardwareStatus Server",
+            expected_title="ServerStatus Server",
             expected_entrypoint=["/usr/local/bin/serverstatus"],
             version=args.version,
             revision=args.revision,
@@ -234,7 +234,7 @@ def main() -> int:
         )
         client = validate_inspect(
             client_inspect,
-            expected_title="HardwareStatus Client",
+            expected_title="ServerStatus Client",
             expected_entrypoint=["/app/entrypoint.sh"],
             version=args.version,
             revision=args.revision,

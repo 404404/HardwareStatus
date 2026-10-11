@@ -13,12 +13,17 @@ if str(CLIENT_DIR) not in sys.path:
     sys.path.insert(0, str(CLIENT_DIR))
 
 from device_client_config import (  # noqa: E402
+    CANONICAL_DEVICE_TOKEN_PATH,
     ClientMode,
     load_client_selection,
     load_custom_ca,
     load_device_token,
 )
-from multi_device_contracts import ClientContractError, resolve_client_config  # noqa: E402
+from multi_device_contracts import (  # noqa: E402
+    LEGACY_DEVICE_TOKEN_PATH,
+    ClientContractError,
+    resolve_client_config,
+)
 
 
 TOKEN = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
@@ -32,15 +37,15 @@ class DeviceClientConfigTests(unittest.TestCase):
         self.token_path.write_text(TOKEN, encoding="utf-8")
         self.token_path.chmod(0o600)
         self.complete_env = {
-            "HERMESSTATUS_SERVER_URL": "https://status.example.invalid",
-            "HERMESSTATUS_DEVICE_ID": "device-alpha",
-            "HERMESSTATUS_DEVICE_NAME": "Synthetic Alpha",
-            "HERMESSTATUS_DEVICE_FQDN": "alpha.example.invalid",
-            "HERMESSTATUS_DEVICE_TOKEN_FILE": str(self.token_path),
-            "HERMESSTATUS_TLS_VERIFY": "true",
-            "HERMESSTATUS_CONNECT_TIMEOUT_SECONDS": "10",
-            "HERMESSTATUS_READ_TIMEOUT_SECONDS": "30",
-            "HERMESSTATUS_COLLECTION_INTERVAL_SECONDS": "60",
+            "SERVERSTATUS_SERVER_URL": "https://status.example.invalid",
+            "SERVERSTATUS_DEVICE_ID": "device-alpha",
+            "SERVERSTATUS_DEVICE_NAME": "Synthetic Alpha",
+            "SERVERSTATUS_DEVICE_FQDN": "alpha.example.invalid",
+            "SERVERSTATUS_DEVICE_TOKEN_FILE": str(self.token_path),
+            "SERVERSTATUS_TLS_VERIFY": "true",
+            "SERVERSTATUS_CONNECT_TIMEOUT_SECONDS": "10",
+            "SERVERSTATUS_READ_TIMEOUT_SECONDS": "30",
+            "SERVERSTATUS_COLLECTION_INTERVAL_SECONDS": "60",
         }
 
     def tearDown(self):
@@ -54,8 +59,8 @@ class DeviceClientConfigTests(unittest.TestCase):
             [],
             environ={
                 "SERVER": "127.0.0.1",
-                "HERMESSTATUS_CLIENT_VERSION": "2.5",
-                "HERMESSTATUS_CLIENT_REVISION": "abcdef012345",
+                "SERVERSTATUS_CLIENT_VERSION": "2.5",
+                "SERVERSTATUS_CLIENT_REVISION": "abcdef012345",
             },
         )
         self.assertIs(legacy_with_build_metadata.mode, ClientMode.LEGACY)
@@ -66,17 +71,55 @@ class DeviceClientConfigTests(unittest.TestCase):
 
     def test_catalog_build_metadata_alone_does_not_select_device_v2(self):
         metadata = {
-            "HERMESSTATUS_CLIENT_VERSION": "2.7",
-            "HERMESSTATUS_CLIENT_REVISION": "e" * 40,
-            "HERMESSTATUS_CLIENT_BUILD_TIME": "2026-08-31T00:00:00Z",
-            "HERMESSTATUS_CLIENT_PROTOCOL": "device_v2",
-            "HERMESSTATUS_UNIFI_CATALOG_REVISION": "a" * 40,
-            "HERMESSTATUS_UNIFI_CATALOG_SCHEMA_VERSION": "1",
-            "HERMESSTATUS_UNIFI_CATALOG_SHA256": "b" * 64,
+            "SERVERSTATUS_CLIENT_VERSION": "2.7",
+            "SERVERSTATUS_CLIENT_REVISION": "e" * 40,
+            "SERVERSTATUS_CLIENT_BUILD_TIME": "2026-08-31T00:00:00Z",
+            "SERVERSTATUS_CLIENT_PROTOCOL": "device_v2",
+            "SERVERSTATUS_UNIFI_CATALOG_REVISION": "a" * 40,
+            "SERVERSTATUS_UNIFI_CATALOG_SCHEMA_VERSION": "1",
+            "SERVERSTATUS_UNIFI_CATALOG_SHA256": "b" * 64,
         }
         selection = load_client_selection([], environ=metadata)
         self.assertIs(selection.mode, ClientMode.LEGACY)
         self.assertIsNone(selection.device_v2)
+
+    def test_legacy_environment_prefix_and_cli_remain_accepted(self):
+        legacy_env = {
+            key.replace("SERVERSTATUS_", "HERMESSTATUS_", 1): value
+            for key, value in self.complete_env.items()
+        }
+        selected = load_client_selection([], environ=legacy_env)
+        self.assertIs(selected.mode, ClientMode.DEVICE_V2)
+        self.assertEqual(selected.device_v2.device_id, "device-alpha")
+
+        cli = [
+            "HERMESSTATUS_SERVER_URL=https://status.example.invalid",
+            "HERMESSTATUS_DEVICE_ID=device-alpha",
+            "HERMESSTATUS_DEVICE_NAME=Synthetic Alpha",
+            "HERMESSTATUS_DEVICE_TOKEN_FILE=" + str(self.token_path),
+        ]
+        selected = load_client_selection(cli)
+        self.assertIs(selected.mode, ClientMode.DEVICE_V2)
+
+    def test_conflicting_old_and_new_environment_aliases_fail_closed(self):
+        with self.assertRaises(ClientContractError):
+            load_client_selection(
+                [],
+                environ={
+                    **self.complete_env,
+                    "HERMESSTATUS_SERVER_URL": "https://legacy.example.invalid",
+                },
+            )
+
+    def test_default_token_path_falls_back_only_to_fixed_legacy_path(self):
+        with mock.patch(
+            "device_client_config.LEGACY_DEVICE_TOKEN_PATH", str(self.token_path)
+        ), mock.patch(
+            "device_client_config.os.path.lexists",
+            side_effect=lambda path: path == str(self.token_path),
+        ):
+            self.assertEqual(load_device_token(CANONICAL_DEVICE_TOKEN_PATH), TOKEN)
+        self.assertEqual(LEGACY_DEVICE_TOKEN_PATH, "/run/secrets/hermesstatus-device-token")
 
     def test_valid_device_v2_configuration_is_unchanged_by_catalog_metadata(self):
         baseline = load_client_selection([], environ=self.complete_env)
@@ -84,13 +127,13 @@ class DeviceClientConfigTests(unittest.TestCase):
             [],
             environ={
                 **self.complete_env,
-                "HERMESSTATUS_CLIENT_VERSION": "2.7",
-                "HERMESSTATUS_CLIENT_REVISION": "e" * 40,
-                "HERMESSTATUS_CLIENT_BUILD_TIME": "2026-08-31T00:00:00Z",
-                "HERMESSTATUS_CLIENT_PROTOCOL": "device_v2",
-                "HERMESSTATUS_UNIFI_CATALOG_REVISION": "a" * 40,
-                "HERMESSTATUS_UNIFI_CATALOG_SCHEMA_VERSION": "1",
-                "HERMESSTATUS_UNIFI_CATALOG_SHA256": "b" * 64,
+                "SERVERSTATUS_CLIENT_VERSION": "2.7",
+                "SERVERSTATUS_CLIENT_REVISION": "e" * 40,
+                "SERVERSTATUS_CLIENT_BUILD_TIME": "2026-08-31T00:00:00Z",
+                "SERVERSTATUS_CLIENT_PROTOCOL": "device_v2",
+                "SERVERSTATUS_UNIFI_CATALOG_REVISION": "a" * 40,
+                "SERVERSTATUS_UNIFI_CATALOG_SCHEMA_VERSION": "1",
+                "SERVERSTATUS_UNIFI_CATALOG_SHA256": "b" * 64,
             },
         )
         self.assertIs(with_metadata.mode, ClientMode.DEVICE_V2)
@@ -122,14 +165,14 @@ class DeviceClientConfigTests(unittest.TestCase):
         config_path.chmod(0o600)
         selection = load_client_selection(
             [
-                "HERMESSTATUS_SERVER_URL=https://cli.example.invalid",
-                "HERMESSTATUS_DEVICE_NAME=CLI",
+                "SERVERSTATUS_SERVER_URL=https://cli.example.invalid",
+                "SERVERSTATUS_DEVICE_NAME=CLI",
             ],
             environ={
-                "HERMESSTATUS_CONFIG_FILE": str(config_path),
-                "HERMESSTATUS_SERVER_URL": "https://env.example.invalid",
-                "HERMESSTATUS_DEVICE_NAME": "Environment",
-                "HERMESSTATUS_READ_TIMEOUT_SECONDS": "25",
+                "SERVERSTATUS_CONFIG_FILE": str(config_path),
+                "SERVERSTATUS_SERVER_URL": "https://env.example.invalid",
+                "SERVERSTATUS_DEVICE_NAME": "Environment",
+                "SERVERSTATUS_READ_TIMEOUT_SECONDS": "25",
             },
         )
         config = selection.device_v2
@@ -170,11 +213,11 @@ class DeviceClientConfigTests(unittest.TestCase):
         config_path.chmod(0o600)
         selection = load_client_selection(
             [
-                'HERMESSTATUS_SMART_DEVICES=[{"path":"/dev/nvme0n1","type":"nvme"}]',
-                "HERMESSTATUS_PRIMARY_SMART_DEVICE=/dev/nvme0n1",
+                'SERVERSTATUS_SMART_DEVICES=[{"path":"/dev/nvme0n1","type":"nvme"}]',
+                "SERVERSTATUS_PRIMARY_SMART_DEVICE=/dev/nvme0n1",
             ],
             environ={
-                "HERMESSTATUS_CONFIG_FILE": str(config_path),
+                "SERVERSTATUS_CONFIG_FILE": str(config_path),
                 "SMART_DEVICES": '[{"path":"/dev/sdb"}]',
                 "PRIMARY_SMART_DEVICE": "/dev/sdb",
             },
@@ -205,7 +248,7 @@ class DeviceClientConfigTests(unittest.TestCase):
             path = self.root / ("invalid-%s.json" % len(hardware))
             path.write_text(json.dumps(document), encoding="utf-8")
             with self.subTest(hardware=hardware), self.assertRaises(ClientContractError):
-                load_client_selection([], environ={"HERMESSTATUS_CONFIG_FILE": str(path)})
+                load_client_selection([], environ={"SERVERSTATUS_CONFIG_FILE": str(path)})
 
     def test_filesystem_mountpoint_keeps_spacing_and_matches_wire_bound(self):
         preserved = resolve_client_config(
@@ -238,28 +281,28 @@ class DeviceClientConfigTests(unittest.TestCase):
 
     def test_unknown_catalog_and_arbitrary_metadata_names_still_fail_closed(self):
         for key in (
-            "HERMESSTATUS_UNIFI_CATALOG_UNKNOWN_FIELD",
-            "HERMESSTATUS_UNKNOWN_CONFIGURATION",
+            "SERVERSTATUS_UNIFI_CATALOG_UNKNOWN_FIELD",
+            "SERVERSTATUS_UNKNOWN_CONFIGURATION",
         ):
             with self.subTest(key=key), self.assertRaises(ClientContractError):
                 load_client_selection([], environ={key: "value"})
 
     def test_build_metadata_is_not_valid_device_v2_cli_configuration(self):
         for key, value in (
-            ("HERMESSTATUS_CLIENT_VERSION", "2.7"),
-            ("HERMESSTATUS_UNIFI_CATALOG_REVISION", "a" * 40),
-            ("HERMESSTATUS_UNIFI_CATALOG_SCHEMA_VERSION", "1"),
-            ("HERMESSTATUS_UNIFI_CATALOG_SHA256", "b" * 64),
+            ("SERVERSTATUS_CLIENT_VERSION", "2.7"),
+            ("SERVERSTATUS_UNIFI_CATALOG_REVISION", "a" * 40),
+            ("SERVERSTATUS_UNIFI_CATALOG_SCHEMA_VERSION", "1"),
+            ("SERVERSTATUS_UNIFI_CATALOG_SHA256", "b" * 64),
         ):
             with self.subTest(key=key), self.assertRaises(ClientContractError):
                 load_client_selection([f"{key}={value}"], environ={})
 
     def test_partial_unknown_malformed_and_mixed_v2_fail_closed(self):
         invalid_environments = [
-            {"HERMESSTATUS_SERVER_URL": "https://status.example.invalid"},
-            {**self.complete_env, "HERMESSTATUS_UNKNOWN": "value"},
-            {**self.complete_env, "HERMESSTATUS_TLS_VERIFY": "maybe"},
-            {**self.complete_env, "HERMESSTATUS_READ_TIMEOUT_SECONDS": "3.5"},
+            {"SERVERSTATUS_SERVER_URL": "https://status.example.invalid"},
+            {**self.complete_env, "SERVERSTATUS_UNKNOWN": "value"},
+            {**self.complete_env, "SERVERSTATUS_TLS_VERIFY": "maybe"},
+            {**self.complete_env, "SERVERSTATUS_READ_TIMEOUT_SECONDS": "3.5"},
             {**self.complete_env, "SERVER": "legacy.example.invalid"},
             {**self.complete_env, "PASSWORD": "legacy-placeholder"},
         ]
@@ -270,12 +313,12 @@ class DeviceClientConfigTests(unittest.TestCase):
                 load_client_selection([], environ=environment)
         with self.assertRaises(ClientContractError):
             load_client_selection(
-                ["HERMESSTATUS_DEVICE_TOKEN=plaintext-value"],
+                ["SERVERSTATUS_DEVICE_TOKEN=plaintext-value"],
                 environ={},
             )
         with self.assertRaises(ClientContractError):
             load_client_selection(
-                ["HERMESSTATUS_SERVER_URL=https://status.example.invalid", "USER=s01"],
+                ["SERVERSTATUS_SERVER_URL=https://status.example.invalid", "USER=s01"],
                 environ={},
             )
 
@@ -284,7 +327,7 @@ class DeviceClientConfigTests(unittest.TestCase):
         path.write_text(json.dumps({"schema_version": 1}), encoding="utf-8")
         path.chmod(0o644)
         with self.assertRaises(ClientContractError):
-            load_client_selection([], environ={"HERMESSTATUS_CONFIG_FILE": str(path)})
+            load_client_selection([], environ={"SERVERSTATUS_CONFIG_FILE": str(path)})
 
     def test_strict_config_file_and_symlink_boundary(self):
         valid_document = {
@@ -320,7 +363,7 @@ class DeviceClientConfigTests(unittest.TestCase):
             with self.subTest(name=name), self.assertRaises(ClientContractError):
                 load_client_selection(
                     [],
-                    environ={"HERMESSTATUS_CONFIG_FILE": str(path)},
+                    environ={"SERVERSTATUS_CONFIG_FILE": str(path)},
                 )
 
         real_path = self.root / "valid.json"
@@ -330,7 +373,7 @@ class DeviceClientConfigTests(unittest.TestCase):
         with self.assertRaises(ClientContractError):
             load_client_selection(
                 [],
-                environ={"HERMESSTATUS_CONFIG_FILE": str(link_path)},
+                environ={"SERVERSTATUS_CONFIG_FILE": str(link_path)},
             )
 
 
@@ -456,7 +499,7 @@ class DeviceTokenFileTests(unittest.TestCase):
             load_client_selection(
                 [],
                 environ={
-                    "HERMESSTATUS_CONFIG_FILE": str(linked / "client.json"),
+                    "SERVERSTATUS_CONFIG_FILE": str(linked / "client.json"),
                 },
             )
 

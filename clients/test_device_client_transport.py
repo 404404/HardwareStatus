@@ -161,10 +161,12 @@ class DeviceTransportTests(unittest.TestCase):
                 "Content-Type",
                 "Accept",
                 "Authorization",
+                "X-ServerStatus-Device-ID",
                 "X-HermesStatus-Device-ID",
             },
         )
         self.assertEqual(headers["Authorization"], "Bearer " + TOKEN)
+        self.assertEqual(headers["X-ServerStatus-Device-ID"], "device-alpha")
         self.assertEqual(headers["X-HermesStatus-Device-ID"], "device-alpha")
         decoded = json.loads(body)
         self.assertEqual(decoded["device"]["id"], "device-alpha")

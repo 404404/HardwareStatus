@@ -1,8 +1,10 @@
 # Configuration
 
-HardwareStatus configuration is explicit and fail-closed. The public project
-name is HardwareStatus; compatibility paths and variables such as
-`HERMESSTATUS_CONFIG_FILE` remain unchanged.
+ServerStatus configuration is explicit and fail-closed. New deployments use
+the `SERVERSTATUS_*` variable prefix and `/etc/serverstatus` and
+`/run/secrets/serverstatus` paths. A newly upgraded Client also accepts the
+former prefix and paths so existing mounted configuration can be migrated in a
+separate controlled change; see [rename migration](NAME_MIGRATION.md).
 
 ## Server and Device Registry
 
@@ -26,9 +28,9 @@ document.
 ## Unified Client configuration
 
 New deployments use the strict JSON document selected by
-`HERMESSTATUS_CONFIG_FILE`, conventionally mounted read-only at
-`/run/secrets/hermesstatus/client-config.json`. The Device v2 token stays in a
-separate read-only file at `/run/secrets/hermesstatus-device-token`.
+`SERVERSTATUS_CONFIG_FILE`, conventionally mounted read-only at
+`/run/secrets/serverstatus/client-config.json`. The Device v2 token stays in a
+separate read-only file at `/run/secrets/serverstatus-device-token`.
 
 The document has `schema_version: 1` and explicit `server`, `device`,
 `collection`, and `collectors` sections. Unknown fields, unknown collector
@@ -38,7 +40,7 @@ do not mix its authority with a unified configuration in one Client.
 
 Use root-owned regular files with mode `0600` (or a stricter documented mode)
 and read-only mounts. Collector secrets materialize only into the Client's
-private `/run/hermesstatus` tmpfs; they never belong in environment values,
+private `/run/serverstatus` tmpfs; they never belong in environment values,
 arguments, telemetry, logs, fixtures, or UI text.
 
 ## Hardware and Docker

@@ -1,8 +1,10 @@
 # Architecture
 
-HardwareStatus is a read-only monitoring system with one authoritative browser
-projection. The public repository has been renamed to HardwareStatus; the
-existing `hermesstatus` runtime namespace remains a compatibility boundary.
+ServerStatus is a read-only monitoring system with one authoritative browser
+projection. Its public source repository is
+[404404/HardwareStatus](https://github.com/404404/HardwareStatus). New runtime
+interfaces use the `serverstatus` namespace; legacy installation names are
+accepted only at explicit compatibility boundaries.
 
 ```text
 authorized host inputs → Python Client → Device v2 HTTPS → Go Server
@@ -74,7 +76,7 @@ verified device/interface identity; they must not leak across devices.
 
 ## Deliberate exclusions
 
-HardwareStatus is not a remote shell, EasyTier/UniFi/Lucky manager, automatic
+ServerStatus is not a remote shell, EasyTier/UniFi/Lucky manager, automatic
 registration service, network scanner, alerting system, time-series database,
 or arbitrary command/path runner. The Server never reads a Docker socket,
 collector secret, raw client configuration, or raw remote response.

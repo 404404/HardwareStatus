@@ -1,20 +1,21 @@
-# HardwareStatus
+# ServerStatus
 
 [中文](README.md) · [English docs](docs/README.md) · [中文文档](docs/zh-CN/README.md) · [GitHub](https://github.com/404404/HardwareStatus)
 
-HardwareStatus is a self-hosted, multi-device, read-only status and hardware
-observability system. The Python Client collects explicitly authorized
+ServerStatus (whose GitHub repository remains HardwareStatus) is a self-hosted,
+multi-device, read-only status and hardware observability system. The Python Client collects explicitly authorized
 observations at the host boundary; the Go Server strictly validates, persists,
 and produces the single `/json/stats.json` projection; the browser renders
 host, hardware, Docker, Hermes, Lucky, EasyTier, UniFi, and component diagnostics
 from that projection.
 
-> **Naming compatibility:** the GitHub repository and public documentation are
-> named **HardwareStatus**. Existing runtime interfaces remain unchanged:
-> `serverstatus`, `HERMESSTATUS_*`, `/etc/hermesstatus`,
-> `/run/secrets/hermesstatus`, and the
-> `ghcr.io/404404/hermesstatus-server` / `hermesstatus-client` packages. They
-> are compatibility contracts for deployed installations, not strings to replace.
+> **Naming and upgrade compatibility:** the product UI, container names, and new
+> candidate packages use **ServerStatus**; the GitHub repository remains
+> `404404/HardwareStatus`. New deployments use `SERVERSTATUS_*`,
+> `/etc/serverstatus`, `/run/secrets/serverstatus`, and
+> `ghcr.io/404404/serverstatus-server` / `serverstatus-client`. New releases still
+> accept legacy configuration prefixes, mounted paths, and Device v2 identity
+> headers. See the [rename migration guide](docs/NAME_MIGRATION.md).
 
 ## Capabilities and boundaries
 
@@ -65,9 +66,13 @@ strict normalized projections.
 Production and qualification use GitHub-CI-built immutable image references:
 
 ```yaml
-image: ghcr.io/404404/hermesstatus-server@sha256:<approved-server-digest>
-image: ghcr.io/404404/hermesstatus-client@sha256:<client-digest-from-the-same-source-revision>
+image: ghcr.io/404404/serverstatus-server@sha256:<approved-server-digest>
+image: ghcr.io/404404/serverstatus-client@sha256:<client-digest-from-the-same-source-revision>
 ```
+
+Deployment Compose names are `serverstatus-server-2x` and
+`serverstatus-client-2x` (the root development Compose uses
+`serverstatus-server` / `serverstatus-client`).
 
 Do not substitute `latest`, a broad version tag, or local `--build` for an
 approved digest. Before deployment verify that:
@@ -103,6 +108,7 @@ filesystems. See the [Device v2 guide](docs/DEVICE_CONFIGURATION.md) and
 
 - [Architecture](docs/ARCHITECTURE.md) · [Configuration](docs/CONFIGURATION.md) · [Deployment](docs/DEPLOYMENT.md)
 - [Security](docs/SECURITY.md) · [Operations](docs/OPERATIONS.md) · [Development](docs/DEVELOPMENT.md)
+- [Rename migration](docs/NAME_MIGRATION.md)
 - [Device v2 configuration](docs/DEVICE_CONFIGURATION.md) · [Unified Client configuration](docs/UNIFIED_CLIENT_CONFIG.md)
 - [EasyTier](docs/design/EASYTIER_MONITORING.md) · [Hardware](docs/design/HARDWARE_MONITORING.md) · [UniFi](docs/design/UNIFI_MONITORING.md)
 

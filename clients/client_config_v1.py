@@ -1,4 +1,4 @@
-"""Strict HardwareStatus unified Client configuration.
+"""Strict ServerStatus unified Client configuration.
 
 The unified file is a secret bundle for downstream collectors.  Device v2
 authentication remains a separate, fixed token file.  This module validates
@@ -17,9 +17,10 @@ import stat
 from pathlib import Path
 from typing import Any, Mapping
 
+from multi_device_contracts import CANONICAL_DEVICE_TOKEN_PATH
+
 
 SCHEMA_VERSION = 1
-CANONICAL_DEVICE_TOKEN_PATH = "/run/secrets/hermesstatus-device-token"
 MAX_CONFIG_BYTES = 128 << 10
 MAX_SECRET_BYTES = 4096
 ALLOWED_PLATFORMS = {"linux", "synology", "macos", "windows"}
@@ -30,6 +31,7 @@ COLLECTOR_NAMES = (
 EASYTIER_ROLES = {"site_router", "endpoint", "bootstrap_listener", "relay_capable", "observer"}
 EASYTIER_CLI_PATHS = {
     "/usr/local/bin/easytier-cli",
+    "/usr/local/libexec/serverstatus/easytier-cli",
     "/usr/local/libexec/hermesstatus/easytier-cli",
 }
 SECRET_KEYS = {"open_token", "ssh_password", "password", "api_key"}
@@ -382,8 +384,10 @@ def parse_unified_document(document: Mapping[str, Any]) -> dict[str, Any]:
     return values
 
 
-def materialize_unified_collectors(collectors: Mapping[str, Any], root: str = "/run/hermesstatus") -> dict[str, Any]:
+def materialize_unified_collectors(collectors: Mapping[str, Any], root: str | None = None) -> dict[str, Any]:
     """Materialize validated secret values into fixed private tmpfs paths."""
+    if root is None:
+        root = _runtime_secret_root()
     root_path = Path(root)
     root_path.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(root_path, 0o700)
@@ -447,3 +451,15 @@ def materialize_unified_collectors(collectors: Mapping[str, Any], root: str = "/
 
     atexit.register(cleanup)
     return runtime
+
+
+def _runtime_secret_root() -> str:
+    """Use the new tmpfs path when mounted, otherwise the deployed legacy mount."""
+    for candidate in ("/run/serverstatus", "/run/hermesstatus"):
+        try:
+            metadata = os.lstat(candidate)
+        except OSError:
+            continue
+        if stat.S_ISDIR(metadata.st_mode):
+            return candidate
+    return "/run/serverstatus"

@@ -1,4 +1,4 @@
-"""Shared fixed HardwareStatus device_v2 HTTPS transport and retry runtime."""
+"""Shared fixed ServerStatus device_v2 HTTPS transport and retry runtime."""
 
 from __future__ import annotations
 
@@ -123,6 +123,9 @@ class DeviceHTTPSClient:
                     "Content-Type": "application/json",
                     "Accept": "application/json",
                     "Authorization": "Bearer " + self._token,
+                    "X-ServerStatus-Device-ID": self._config.device_id,
+                    # Keep the old identity header during the rename window so
+                    # this Client can talk to a not-yet-upgraded Server.
                     "X-HermesStatus-Device-ID": self._config.device_id,
                 },
             )

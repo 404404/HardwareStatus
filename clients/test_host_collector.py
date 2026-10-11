@@ -1177,10 +1177,10 @@ class HostCollectorTests(unittest.TestCase):
         self.assertIsNone(collect_client_build({}))
         self.assertEqual(
             collect_client_build({
-                "HERMESSTATUS_CLIENT_VERSION": "2.5",
-                "HERMESSTATUS_CLIENT_REVISION": "abcdef0123abcdef0123abcdef0123abcdef0123",
-                "HERMESSTATUS_CLIENT_BUILD_TIME": "2026-08-11T00:00:00Z",
-                "HERMESSTATUS_CLIENT_PROTOCOL": "device_v2",
+                "SERVERSTATUS_CLIENT_VERSION": "2.5",
+                "SERVERSTATUS_CLIENT_REVISION": "abcdef0123abcdef0123abcdef0123abcdef0123",
+                "SERVERSTATUS_CLIENT_BUILD_TIME": "2026-08-11T00:00:00Z",
+                "SERVERSTATUS_CLIENT_PROTOCOL": "device_v2",
             }),
             {
                 "version": "2.5",
@@ -1191,11 +1191,20 @@ class HostCollectorTests(unittest.TestCase):
         )
         self.assertIsNone(
             collect_client_build({
-                "HERMESSTATUS_CLIENT_VERSION": "2.5",
-                "HERMESSTATUS_CLIENT_REVISION": "unknown",
-                "HERMESSTATUS_CLIENT_PROTOCOL": "device_v2",
+                "SERVERSTATUS_CLIENT_VERSION": "2.5",
+                "SERVERSTATUS_CLIENT_REVISION": "unknown",
+                "SERVERSTATUS_CLIENT_PROTOCOL": "device_v2",
             })
         )
+
+    def test_client_build_accepts_legacy_image_metadata(self):
+        result = collect_client_build({
+            "HERMESSTATUS_CLIENT_VERSION": "2.7",
+            "HERMESSTATUS_CLIENT_REVISION": "abcdef0123abcdef0123abcdef0123abcdef0123",
+            "HERMESSTATUS_CLIENT_PROTOCOL": "device_v2",
+        })
+        self.assertEqual(result["version"], "2.7")
+        self.assertEqual(result["protocol"], "device_v2")
 
     def test_extension_payload_exposes_client_build_at_the_root(self):
         build = {"version": "2.5", "revision": "abcdef012345", "protocol": "device_v2", "build_time": None}

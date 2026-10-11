@@ -1,6 +1,7 @@
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 const MAX_UI_DEVICES = 16;
-const DEVICE_STORAGE_KEY = 'hermesstatus.selectedDeviceId';
+const DEVICE_STORAGE_KEY = 'serverstatus.selectedDeviceId';
+const LEGACY_DEVICE_STORAGE_KEY = 'hermesstatus.selectedDeviceId';
 const DEVICE_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,62}$/;
 const DEVICE_STATUSES = new Set([
   'online', 'degraded', 'stale', 'offline', 'never_seen', 'disabled',
@@ -478,8 +479,14 @@ function resolveDeviceSelection(documentValue, routeDeviceId, storedDeviceId){
 
 function readStoredDeviceId(storage){
   try{
-    const value = storage?.getItem?.(DEVICE_STORAGE_KEY);
-    return validDeviceId(value) ? value : null;
+    const current = storage?.getItem?.(DEVICE_STORAGE_KEY);
+    if(validDeviceId(current)) return current;
+    const legacy = storage?.getItem?.(LEGACY_DEVICE_STORAGE_KEY);
+    if(validDeviceId(legacy)){
+      storage?.setItem?.(DEVICE_STORAGE_KEY, legacy);
+      return legacy;
+    }
+    return null;
   }catch(_error){
     return null;
   }
@@ -488,7 +495,10 @@ function readStoredDeviceId(storage){
 function writeStoredDeviceId(storage, deviceId){
   try{
     if(validDeviceId(deviceId)) storage?.setItem?.(DEVICE_STORAGE_KEY, deviceId);
-    else storage?.removeItem?.(DEVICE_STORAGE_KEY);
+    else{
+      storage?.removeItem?.(DEVICE_STORAGE_KEY);
+      storage?.removeItem?.(LEGACY_DEVICE_STORAGE_KEY);
+    }
   }catch(_error){
     // Browser storage may be disabled; selection remains in memory.
   }
@@ -2582,5 +2592,9 @@ const exported = {
 };
 
 if(typeof module !== 'undefined' && module.exports) module.exports = exported;
-if(typeof window !== 'undefined') window.HermesStatusDashboard = exported;
+if(typeof window !== 'undefined'){
+  window.ServerStatusDashboard = exported;
+  // Keep the old integration hook for custom dashboards during migration.
+  window.HermesStatusDashboard = exported;
+}
 if(typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', initDashboard, { once: true });

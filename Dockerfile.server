@@ -26,14 +26,14 @@ ARG BUILD_DATE=unknown
 ARG SOURCE_URL=https://github.com/404404/HardwareStatus
 
 LABEL maintainer="cppla <https://cpp.la>" \
-    org.opencontainers.image.title="HardwareStatus Server" \
-    org.opencontainers.image.description="HardwareStatus Go server and read-only dashboard" \
+    org.opencontainers.image.title="ServerStatus Server" \
+    org.opencontainers.image.description="ServerStatus Go server and read-only dashboard" \
     org.opencontainers.image.version="${VERSION}" \
     org.opencontainers.image.revision="${VCS_REF}" \
     org.opencontainers.image.created="${BUILD_DATE}" \
     org.opencontainers.image.source="${SOURCE_URL}" \
     org.opencontainers.image.licenses="MIT" \
-    io.hermesstatus.component="server"
+    io.serverstatus.component="server"
 
 RUN apk add --no-cache ca-certificates tzdata \
     && mkdir -p /app/config /app/data /app/web

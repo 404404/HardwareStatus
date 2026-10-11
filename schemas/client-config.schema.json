@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "HardwareStatus unified Client configuration",
+  "title": "ServerStatus unified Client configuration",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "server", "device", "collectors"],
@@ -106,7 +106,7 @@
         {"type": "object", "required": ["enabled"], "properties": {"enabled": {"const": false}}, "additionalProperties": false},
         {"type": "object", "required": ["enabled", "cli_path", "rpc_portal", "timeout_seconds", "interval_seconds", "administrative_role"], "properties": {
           "enabled": {"const": true},
-          "cli_path": {"enum": ["/usr/local/bin/easytier-cli", "/usr/local/libexec/hermesstatus/easytier-cli"]},
+          "cli_path": {"enum": ["/usr/local/bin/easytier-cli", "/usr/local/libexec/serverstatus/easytier-cli", "/usr/local/libexec/hermesstatus/easytier-cli"]},
           "rpc_portal": {"const": "127.0.0.1:15888"},
           "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 30},
           "interval_seconds": {"type": "integer", "minimum": 5, "maximum": 3600},

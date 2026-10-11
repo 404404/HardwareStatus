@@ -1,13 +1,18 @@
 # Deployment
 
-Deploy only immutable GitHub-CI images from a recorded candidate. The currently
-published package names intentionally remain `hermesstatus-server` and
-`hermesstatus-client` after the repository rename.
+Deploy only immutable GitHub-CI images from a recorded candidate. New
+ServerStatus candidates use the `serverstatus-server` and `serverstatus-client`
+GHCR packages. Previously deployed HermesStatus images remain distinct legacy
+artifacts and are not retagged by this source rename.
 
 ```yaml
-image: ghcr.io/404404/hermesstatus-server@sha256:<approved-server-digest>
-image: ghcr.io/404404/hermesstatus-client@sha256:<approved-client-digest>
+image: ghcr.io/404404/serverstatus-server@sha256:<approved-server-digest>
+image: ghcr.io/404404/serverstatus-client@sha256:<approved-client-digest>
 ```
+
+Use Compose container names `serverstatus-server-2x` and
+`serverstatus-client-2x`. Repository/service upgrade details, legacy aliases,
+and rollback constraints are in the [name migration guide](NAME_MIGRATION.md).
 
 Do not replace these with `latest`, a broad version tag, or a local build.
 Before any change, verify each image OCI revision equals the approved source

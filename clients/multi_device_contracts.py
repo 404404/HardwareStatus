@@ -1,4 +1,4 @@
-"""Pure HardwareStatus Client contracts.
+"""Pure ServerStatus Client contracts.
 
 This Stage A module performs no network I/O, DNS, TLS, token-file reads, or
 production entrypoint integration.
@@ -23,6 +23,8 @@ DNS_LABEL_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 MAX_ENVELOPE_BYTES = 1 << 20
 MAX_RESPONSE_BYTES = 1 << 20
 UPDATE_PATH = "/api/v2/device-updates"
+CANONICAL_DEVICE_TOKEN_PATH = "/run/secrets/serverstatus-device-token"
+LEGACY_DEVICE_TOKEN_PATH = "/run/secrets/hermesstatus-device-token"
 REQUIRED_STATS_FIELDS = {
     "extension_version",
     "hardware",
@@ -82,19 +84,19 @@ UNIFI_USERNAME_RE = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
 UNIFI_API_FINGERPRINT_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 
 ENV_TO_FIELD = {
-    "HERMESSTATUS_SERVER_URL": "server_url",
-    "HERMESSTATUS_DEVICE_ID": "device_id",
-    "HERMESSTATUS_DEVICE_NAME": "device_name",
-    "HERMESSTATUS_DEVICE_FQDN": "device_fqdn",
-    "HERMESSTATUS_DEVICE_TOKEN_FILE": "token_file",
-    "HERMESSTATUS_TLS_CA_FILE": "ca_file",
-    "HERMESSTATUS_TLS_VERIFY": "verify_tls",
-    "HERMESSTATUS_CONNECT_TIMEOUT_SECONDS": "connect_timeout_seconds",
-    "HERMESSTATUS_READ_TIMEOUT_SECONDS": "read_timeout_seconds",
-    "HERMESSTATUS_COLLECTION_INTERVAL_SECONDS": "collection_interval_seconds",
-    "HERMESSTATUS_SMART_DEVICES": "smart_devices",
-    "HERMESSTATUS_PRIMARY_SMART_DEVICE": "primary_smart_device",
-    "HERMESSTATUS_FILESYSTEM_PROBES": "filesystem_probes",
+    "SERVERSTATUS_SERVER_URL": "server_url",
+    "SERVERSTATUS_DEVICE_ID": "device_id",
+    "SERVERSTATUS_DEVICE_NAME": "device_name",
+    "SERVERSTATUS_DEVICE_FQDN": "device_fqdn",
+    "SERVERSTATUS_DEVICE_TOKEN_FILE": "token_file",
+    "SERVERSTATUS_TLS_CA_FILE": "ca_file",
+    "SERVERSTATUS_TLS_VERIFY": "verify_tls",
+    "SERVERSTATUS_CONNECT_TIMEOUT_SECONDS": "connect_timeout_seconds",
+    "SERVERSTATUS_READ_TIMEOUT_SECONDS": "read_timeout_seconds",
+    "SERVERSTATUS_COLLECTION_INTERVAL_SECONDS": "collection_interval_seconds",
+    "SERVERSTATUS_SMART_DEVICES": "smart_devices",
+    "SERVERSTATUS_PRIMARY_SMART_DEVICE": "primary_smart_device",
+    "SERVERSTATUS_FILESYSTEM_PROBES": "filesystem_probes",
 }
 ALLOWED_FIELDS = {
     "server_url",
@@ -280,13 +282,13 @@ def resolve_client_config(
     # to override the config file without reopening unrestricted /dev access.
     for field, names in {
         "smart_devices": (
-            "HERMESSTATUS_SMART_DEVICES", "SMART_DEVICES", "SMART_DEVICE",
+            "SERVERSTATUS_SMART_DEVICES", "SMART_DEVICES", "SMART_DEVICE",
         ),
         "primary_smart_device": (
-            "HERMESSTATUS_PRIMARY_SMART_DEVICE", "PRIMARY_SMART_DEVICE",
+            "SERVERSTATUS_PRIMARY_SMART_DEVICE", "PRIMARY_SMART_DEVICE",
         ),
         "filesystem_probes": (
-            "HERMESSTATUS_FILESYSTEM_PROBES", "FILESYSTEM_PROBES",
+            "SERVERSTATUS_FILESYSTEM_PROBES", "FILESYSTEM_PROBES",
         ),
     }.items():
         for name in names:

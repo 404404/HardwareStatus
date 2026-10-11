@@ -1,7 +1,7 @@
 # 设备配置
 
-Device v2 配置用于建立身份和最小权限采集，不是远程控制配置格式。仓库名称为
-HardwareStatus，而本文中的 `hermesstatus` 容器路径是刻意保留的兼容路径。
+Device v2 配置用于建立身份和最小权限采集，不是远程控制配置格式。新部署使用下列
+`serverstatus` 容器路径；升级后的 Client 在旧路径仍挂载时也能继续读取现有配置。
 
 ## 路径与挂载
 
@@ -9,10 +9,10 @@ HardwareStatus，而本文中的 `hermesstatus` 容器路径是刻意保留的�
 
 | 主机 | 主机路径 | 容器路径 |
 | --- | --- | --- |
-| Linux/GK50 | `/home/hermes/status/config/client-config.json` | `/run/secrets/hermesstatus/client-config.json` |
-| Synology DSM | `/volume1/docker/status/config/client-config.json` | `/run/secrets/hermesstatus/client-config.json` |
+| Linux/GK50 | `/home/hermes/status/config/client-config.json` | `/run/secrets/serverstatus/client-config.json` |
+| Synology DSM | `/volume1/docker/status/config/client-config.json` | `/run/secrets/serverstatus/client-config.json` |
 
-Device v2 token 必须单独挂载到 `/run/secrets/hermesstatus-device-token`。配置、token、CA、
+Device v2 token 必须单独挂载到 `/run/secrets/serverstatus-device-token`。配置、token、CA、
 UniFi password/API-key/known_hosts 和 Lucky token 都应为 root-owned、权限受限的常规文件并
 只读挂载；诊断时不得输出文件内容。
 

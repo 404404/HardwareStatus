@@ -1,13 +1,18 @@
 # Changelog
 
-## Unreleased — HardwareStatus
+## Unreleased — ServerStatus
 
 ### Changed
 
 - Rename the public GitHub repository, source URLs, OCI title metadata, and
-  documentation to HardwareStatus while retaining deployed `hermesstatus`
+  documentation to HardwareStatus while retaining then-deployed `hermesstatus`
   runtime names, image packages, configuration paths, and protocol headers as
   compatibility contracts.
+
+- Rename current product-facing UI, deployment/container names, GHCR candidate
+  package names, OCI component labels, schema identifiers, and canonical
+  environment/path namespaces to ServerStatus. Keep the GitHub repository URL
+  as `404404/HardwareStatus` and accept legacy deployed names during migration.
 
 ## Historical — HermesStatus 2.2 Multi-Device
 

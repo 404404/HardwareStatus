@@ -52,17 +52,17 @@ class ManualDeviceExampleTests(unittest.TestCase):
         path = EXAMPLES / "docker-compose-server.override.example.yml"
         source = path.read_text(encoding="utf-8")
         for required in (
-            "DEVICE_REGISTRY_PATH: /etc/hermesstatus/devices.json",
-            "HERMESSTATUS_DEVICE_CREDENTIALS_DIR: /etc/hermesstatus/credentials.d",
-            "LEGACY_DEVICE_MAPPING_PATH: /etc/hermesstatus/legacy-device-mapping.json",
-            "./device-registry.example.json:/etc/hermesstatus/devices.json:ro",
-            "./credentials.d:/etc/hermesstatus/credentials.d:ro",
-            "./legacy-device-mapping.example.json:/etc/hermesstatus/legacy-device-mapping.json:ro",
-            "./state:/var/lib/hermesstatus",
+            "DEVICE_REGISTRY_PATH: /etc/serverstatus/devices.json",
+            "SERVERSTATUS_DEVICE_CREDENTIALS_DIR: /etc/serverstatus/credentials.d",
+            "LEGACY_DEVICE_MAPPING_PATH: /etc/serverstatus/legacy-device-mapping.json",
+            "./device-registry.example.json:/etc/serverstatus/devices.json:ro",
+            "./credentials.d:/etc/serverstatus/credentials.d:ro",
+            "./legacy-device-mapping.example.json:/etc/serverstatus/legacy-device-mapping.json:ro",
+            "./state:/var/lib/serverstatus",
             "ports: !reset []",
         ):
             self.assertIn(required, source)
-        self.assertNotIn("./state:/var/lib/hermesstatus:ro", source)
+        self.assertNotIn("./state:/var/lib/serverstatus:ro", source)
 
     def test_client_override_removes_legacy_transport_and_mounts_v2_read_only(self):
         source = (
@@ -88,8 +88,8 @@ class ManualDeviceExampleTests(unittest.TestCase):
         self.assertIn("volumes: !override", source)
         self.assertNotIn("/dev:/dev:ro", source)
         for required in (
-            "./client-v2.example.json:/etc/hermesstatus/client-v2.json:ro",
-            "./compute-01.token:/run/secrets/hermesstatus-device-token:ro",
+            "./client-v2.example.json:/etc/serverstatus/client-v2.json:ro",
+            "./compute-01.token:/run/secrets/serverstatus-device-token:ro",
             "${DSM_VERSION_FILE_HOST:-/dev/null}:${DSM_VERSION_FILE:-/host/etc.defaults/VERSION}:ro",
         ):
             self.assertIn(required, source)

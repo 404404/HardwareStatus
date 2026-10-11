@@ -1,4 +1,4 @@
-"""Shared HardwareStatus device_v2 mode, configuration, and secret loading."""
+"""Shared ServerStatus device_v2 mode, configuration, and secret loading."""
 
 from __future__ import annotations
 
@@ -11,7 +11,9 @@ from typing import Any, Mapping, Sequence
 
 from multi_device_contracts import (
     ALLOWED_FIELDS,
+    CANONICAL_DEVICE_TOKEN_PATH,
     ENV_TO_FIELD,
+    LEGACY_DEVICE_TOKEN_PATH,
     ClientContractError,
     ClientV2Config,
     parse_config_json,
@@ -26,15 +28,15 @@ from secure_file import (
 )
 
 
-CONFIG_FILE_ENV = "HERMESSTATUS_CONFIG_FILE"
+CONFIG_FILE_ENV = "SERVERSTATUS_CONFIG_FILE"
 BUILD_METADATA_ENV = {
-    "HERMESSTATUS_CLIENT_VERSION",
-    "HERMESSTATUS_CLIENT_REVISION",
-    "HERMESSTATUS_CLIENT_BUILD_TIME",
-    "HERMESSTATUS_CLIENT_PROTOCOL",
-    "HERMESSTATUS_UNIFI_CATALOG_REVISION",
-    "HERMESSTATUS_UNIFI_CATALOG_SCHEMA_VERSION",
-    "HERMESSTATUS_UNIFI_CATALOG_SHA256",
+    "SERVERSTATUS_CLIENT_VERSION",
+    "SERVERSTATUS_CLIENT_REVISION",
+    "SERVERSTATUS_CLIENT_BUILD_TIME",
+    "SERVERSTATUS_CLIENT_PROTOCOL",
+    "SERVERSTATUS_UNIFI_CATALOG_REVISION",
+    "SERVERSTATUS_UNIFI_CATALOG_SCHEMA_VERSION",
+    "SERVERSTATUS_UNIFI_CATALOG_SHA256",
 }
 KNOWN_V2_ENV = set(ENV_TO_FIELD) | {CONFIG_FILE_ENV} | BUILD_METADATA_ENV
 LEGACY_TRANSPORT_KEYS = {"SERVER", "PORT", "SERVERSTATUS_USER", "PASSWORD"}
@@ -62,11 +64,13 @@ def load_client_selection(
     environ: Mapping[str, str] | None = None,
     loopback_test_profile: bool = False,
 ) -> ClientSelection:
-    environment = dict(os.environ if environ is None else environ)
+    environment = _canonicalize_legacy_environment(
+        dict(os.environ if environ is None else environ)
+    )
     cli_v2, cli_legacy = _parse_cli(arguments)
     environment_v2_keys = {
         key for key in environment
-        if key.startswith("HERMESSTATUS_") and key not in BUILD_METADATA_ENV
+        if key.startswith("SERVERSTATUS_") and key not in BUILD_METADATA_ENV
     }
     has_v2_signal = bool(cli_v2 or environment_v2_keys)
     if not has_v2_signal:
@@ -120,6 +124,12 @@ def load_client_selection(
 
 def load_device_token(path: str) -> str:
     validated_path = validate_readonly_file_path(path, "token_file")
+    if (
+        validated_path == CANONICAL_DEVICE_TOKEN_PATH
+        and not os.path.lexists(validated_path)
+        and os.path.lexists(LEGACY_DEVICE_TOKEN_PATH)
+    ):
+        validated_path = LEGACY_DEVICE_TOKEN_PATH
     descriptor = _open_regular_file(
         validated_path,
         error_code="device token file is unavailable",
@@ -173,11 +183,13 @@ def _parse_cli(arguments: Sequence[str]) -> tuple[dict[str, str], set[str]]:
     legacy: set[str] = set()
     for argument in arguments:
         key, separator, value = argument.partition("=")
+        if key.startswith("HERMESSTATUS_"):
+            key = key.replace("HERMESSTATUS_", "SERVERSTATUS_", 1)
         if not separator:
-            if key.startswith("HERMESSTATUS_"):
+            if key.startswith("SERVERSTATUS_"):
                 raise ClientContractError("v2 CLI argument is invalid")
             continue
-        if key.startswith("HERMESSTATUS_"):
+        if key.startswith("SERVERSTATUS_"):
             if key not in KNOWN_V2_ENV or key in BUILD_METADATA_ENV:
                 raise ClientContractError("CLI contains unknown v2 fields")
             if value == "":
@@ -188,6 +200,19 @@ def _parse_cli(arguments: Sequence[str]) -> tuple[dict[str, str], set[str]]:
         elif key in LEGACY_TRANSPORT_KEYS or key == "USER":
             legacy.add(key)
     return v2, legacy
+
+
+def _canonicalize_legacy_environment(environment: dict[str, str]) -> dict[str, str]:
+    """Accept the former prefix while making SERVERSTATUS_* authoritative."""
+    for key in tuple(environment):
+        if not key.startswith("HERMESSTATUS_"):
+            continue
+        canonical = key.replace("HERMESSTATUS_", "SERVERSTATUS_", 1)
+        if canonical in environment and environment[canonical] != environment[key]:
+            raise ClientContractError("legacy and canonical environment values conflict")
+        environment.setdefault(canonical, environment[key])
+        del environment[key]
+    return environment
 
 
 def _open_regular_file(path: str, *, error_code: str) -> int:

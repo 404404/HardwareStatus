@@ -1,8 +1,9 @@
 # Security
 
-HardwareStatus is intentionally read-only. The repository rename does not
-change the established `hermesstatus` credential paths, environment names, or
-image package names used by deployed installations.
+ServerStatus is intentionally read-only. The product rename does not change
+Device v2 identity, token digests, TLS validation, or replay protection. New
+credential paths use `/run/secrets/serverstatus`; legacy paths remain accepted
+only when explicitly mounted by an existing deployment.
 
 ## Identity and secrets
 

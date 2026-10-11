@@ -16,17 +16,17 @@ ARG CATALOG_REVISION=486dacbcb8d0f14e5ee171ce99c6a5ffabc0fb62
 ARG CATALOG_SCHEMA_VERSION=1
 ARG CATALOG_SHA256=2251eddb656af89483a3497ca2fe46bf60339c3f96ae38b3390761d7f379a371
 
-LABEL org.opencontainers.image.title="HardwareStatus Client" \
-    org.opencontainers.image.description="HardwareStatus host and Hermes profile collector" \
+LABEL org.opencontainers.image.title="ServerStatus Client" \
+    org.opencontainers.image.description="ServerStatus host and Hermes profile collector" \
     org.opencontainers.image.version="${VERSION}" \
     org.opencontainers.image.revision="${VCS_REF}" \
     org.opencontainers.image.created="${BUILD_DATE}" \
     org.opencontainers.image.source="${SOURCE_URL}" \
     org.opencontainers.image.licenses="MIT" \
-    io.hermesstatus.component="client" \
-    io.hermesstatus.unifi.catalog.revision="${CATALOG_REVISION}" \
-    io.hermesstatus.unifi.catalog.schema_version="${CATALOG_SCHEMA_VERSION}" \
-    io.hermesstatus.unifi.catalog.sha256="${CATALOG_SHA256}"
+    io.serverstatus.component="client" \
+    io.serverstatus.unifi.catalog.revision="${CATALOG_REVISION}" \
+    io.serverstatus.unifi.catalog.schema_version="${CATALOG_SCHEMA_VERSION}" \
+    io.serverstatus.unifi.catalog.sha256="${CATALOG_SHA256}"
 WORKDIR /app
 
 # smartmontools reads the configured host device; util-linux provides lscpu.
@@ -95,12 +95,12 @@ ENV INTERVAL=1 \
     EASYTIER_INTERVAL_SECONDS=30 \
     EASYTIER_TIMEOUT_SECONDS=5 \
     EASYTIER_ADMINISTRATIVE_ROLE= \
-    HERMESSTATUS_CLIENT_VERSION=${VERSION} \
-    HERMESSTATUS_CLIENT_REVISION=${VCS_REF} \
-    HERMESSTATUS_CLIENT_BUILD_TIME=${BUILD_DATE} \
-    HERMESSTATUS_UNIFI_CATALOG_REVISION=${CATALOG_REVISION} \
-    HERMESSTATUS_UNIFI_CATALOG_SCHEMA_VERSION=${CATALOG_SCHEMA_VERSION} \
-    HERMESSTATUS_UNIFI_CATALOG_SHA256=${CATALOG_SHA256}
+    SERVERSTATUS_CLIENT_VERSION=${VERSION} \
+    SERVERSTATUS_CLIENT_REVISION=${VCS_REF} \
+    SERVERSTATUS_CLIENT_BUILD_TIME=${BUILD_DATE} \
+    SERVERSTATUS_UNIFI_CATALOG_REVISION=${CATALOG_REVISION} \
+    SERVERSTATUS_UNIFI_CATALOG_SCHEMA_VERSION=${CATALOG_SCHEMA_VERSION} \
+    SERVERSTATUS_UNIFI_CATALOG_SHA256=${CATALOG_SHA256}
 
 RUN chmod +x /app/entrypoint.sh /app/unifi_askpass.py
 

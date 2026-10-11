@@ -60,7 +60,7 @@ jobs:
             --output-dir clients/unifi_catalog
       - uses: actions/upload-artifact@v4
         with:
-          name: hermesstatus-2-7-catalog
+          name: serverstatus-2-7-catalog
           path: clients/unifi_catalog
           if-no-files-found: error
 
@@ -109,7 +109,7 @@ jobs:
           ref: ${{ env.SOURCE_SHA }}
       - uses: actions/download-artifact@v4
         with:
-          name: hermesstatus-2-7-catalog
+          name: serverstatus-2-7-catalog
           path: clients/unifi_catalog
       - uses: actions/setup-python@v5
         with:
@@ -167,7 +167,7 @@ jobs:
           ref: ${{ env.SOURCE_SHA }}
       - uses: actions/download-artifact@v4
         with:
-          name: hermesstatus-2-7-catalog
+          name: serverstatus-2-7-catalog
           path: clients/unifi_catalog
       - uses: docker/setup-buildx-action@v3
       - name: Prepare image provenance
@@ -183,7 +183,7 @@ jobs:
           file: Dockerfile.server
           push: false
           load: true
-          tags: hermesstatus-server:2.7-check
+          tags: serverstatus-server:2.7-check
           build-args: |
             VERSION=2.7
             VCS_REF=${{ env.SOURCE_SHA }}
@@ -195,7 +195,7 @@ jobs:
           file: Dockerfile.client
           push: false
           load: true
-          tags: hermesstatus-client:2.7-check
+          tags: serverstatus-client:2.7-check
           build-args: |
             VERSION=2.7
             VCS_REF=${{ env.SOURCE_SHA }}
@@ -207,8 +207,8 @@ jobs:
       - name: Validate image provenance
         run: |
           python3 scripts/validate_image_provenance.py \
-            --server-image hermesstatus-server:2.7-check \
-            --client-image hermesstatus-client:2.7-check \
+            --server-image serverstatus-server:2.7-check \
+            --client-image serverstatus-client:2.7-check \
             --candidate-tag "${{ steps.provenance.outputs.candidate_tag }}" \
             --version "2.7" \
             --revision "${{ env.SOURCE_SHA }}" \
@@ -221,13 +221,13 @@ jobs:
         run: |
           set -euo pipefail
           docker run --rm --entrypoint python3 \
-            -e HERMESSTATUS_SERVER_URL=https://127.0.0.1:8443 \
-            -e HERMESSTATUS_DEVICE_ID=ci-device \
-            -e HERMESSTATUS_DEVICE_TOKEN_FILE=/tmp/ci-device-token \
-            -e HERMESSTATUS_CONNECT_TIMEOUT_SECONDS=1 \
-            -e HERMESSTATUS_READ_TIMEOUT_SECONDS=1 \
-            -e HERMESSTATUS_COLLECTION_INTERVAL_SECONDS=60 \
-            hermesstatus-client:2.7-check \
+            -e SERVERSTATUS_SERVER_URL=https://127.0.0.1:8443 \
+            -e SERVERSTATUS_DEVICE_ID=ci-device \
+            -e SERVERSTATUS_DEVICE_TOKEN_FILE=/tmp/ci-device-token \
+            -e SERVERSTATUS_CONNECT_TIMEOUT_SECONDS=1 \
+            -e SERVERSTATUS_READ_TIMEOUT_SECONDS=1 \
+            -e SERVERSTATUS_COLLECTION_INTERVAL_SECONDS=60 \
+            serverstatus-client:2.7-check \
             -c 'import os; from device_client_config import ClientMode, load_client_selection; selection = load_client_selection([], environ=os.environ); assert selection.mode is ClientMode.DEVICE_V2; assert selection.device_v2.device_id == "ci-device"'
 
   publish:
@@ -247,7 +247,7 @@ jobs:
           ref: ${{ env.SOURCE_SHA }}
       - uses: actions/download-artifact@v4
         with:
-          name: hermesstatus-2-7-catalog
+          name: serverstatus-2-7-catalog
           path: clients/unifi_catalog
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -261,8 +261,8 @@ jobs:
         run: |
           set -euo pipefail
           candidate_tag="2.7-${SOURCE_SHA::12}"
-          server_image="${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/hermesstatus-server:${candidate_tag}"
-          client_image="${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/hermesstatus-client:${candidate_tag}"
+          server_image="${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/serverstatus-server:${candidate_tag}"
+          client_image="${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/serverstatus-client:${candidate_tag}"
           server_present=false
           client_present=false
           server_labels='{}'
@@ -308,16 +308,16 @@ jobs:
           file: Dockerfile.server
           push: true
           platforms: linux/amd64
-          tags: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/hermesstatus-server:${{ steps.candidate_state.outputs.candidate_tag }}
+          tags: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/serverstatus-server:${{ steps.candidate_state.outputs.candidate_tag }}
           labels: |
-            org.opencontainers.image.title=HardwareStatus Server
-            org.opencontainers.image.description=HardwareStatus device status server
+            org.opencontainers.image.title=ServerStatus Server
+            org.opencontainers.image.description=ServerStatus device status server
             org.opencontainers.image.version=2.7
             org.opencontainers.image.revision=${{ env.SOURCE_SHA }}
             org.opencontainers.image.created=${{ steps.provenance.outputs.build_date }}
             org.opencontainers.image.source=${{ env.IMAGE_SOURCE }}
             org.opencontainers.image.licenses=MIT
-            io.hermesstatus.component=server
+            io.serverstatus.component=server
           build-args: |
             VERSION=2.7
             VCS_REF=${{ env.SOURCE_SHA }}
@@ -332,19 +332,19 @@ jobs:
           file: Dockerfile.client
           push: true
           platforms: linux/amd64
-          tags: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/hermesstatus-client:${{ steps.candidate_state.outputs.candidate_tag }}
+          tags: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/serverstatus-client:${{ steps.candidate_state.outputs.candidate_tag }}
           labels: |
-            org.opencontainers.image.title=HardwareStatus Client
-            org.opencontainers.image.description=HardwareStatus host and Hermes profile collector
+            org.opencontainers.image.title=ServerStatus Client
+            org.opencontainers.image.description=ServerStatus host and Hermes profile collector
             org.opencontainers.image.version=2.7
             org.opencontainers.image.revision=${{ env.SOURCE_SHA }}
             org.opencontainers.image.created=${{ steps.provenance.outputs.build_date }}
             org.opencontainers.image.source=${{ env.IMAGE_SOURCE }}
             org.opencontainers.image.licenses=MIT
-            io.hermesstatus.component=client
-            io.hermesstatus.unifi.catalog.revision=${{ needs.catalog.outputs.revision }}
-            io.hermesstatus.unifi.catalog.schema_version=${{ needs.catalog.outputs.schema_version }}
-            io.hermesstatus.unifi.catalog.sha256=${{ needs.catalog.outputs.sha256 }}
+            io.serverstatus.component=client
+            io.serverstatus.unifi.catalog.revision=${{ needs.catalog.outputs.revision }}
+            io.serverstatus.unifi.catalog.schema_version=${{ needs.catalog.outputs.schema_version }}
+            io.serverstatus.unifi.catalog.sha256=${{ needs.catalog.outputs.sha256 }}
           build-args: |
             VERSION=2.7
             VCS_REF=${{ env.SOURCE_SHA }}
@@ -359,8 +359,8 @@ jobs:
         run: |
           set -euo pipefail
           candidate_tag="${{ steps.candidate_state.outputs.candidate_tag }}"
-          server_image="${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/hermesstatus-server:${candidate_tag}"
-          client_image="${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/hermesstatus-client:${candidate_tag}"
+          server_image="${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/serverstatus-server:${candidate_tag}"
+          client_image="${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/serverstatus-client:${candidate_tag}"
           docker buildx imagetools inspect "$server_image"
           docker buildx imagetools inspect "$client_image"
           echo "CANDIDATE_SOURCE_SHA=${{ env.SOURCE_SHA }}"
@@ -372,8 +372,8 @@ jobs:
         run: |
           set -euo pipefail
           candidate_tag="${{ steps.candidate_state.outputs.candidate_tag }}"
-          server_image="${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/hermesstatus-server:${candidate_tag}"
-          client_image="${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/hermesstatus-client:${candidate_tag}"
+          server_image="${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/serverstatus-server:${candidate_tag}"
+          client_image="${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/serverstatus-client:${candidate_tag}"
           docker pull "$server_image" >/dev/null
           docker pull "$client_image" >/dev/null
           server_created=$(docker image inspect "$server_image" --format '{{index .Config.Labels "org.opencontainers.image.created"}}')

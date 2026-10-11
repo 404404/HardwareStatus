@@ -1,7 +1,7 @@
 services:
-  hermesstatus-client:
-    image: ghcr.io/404404/hermesstatus-client:${HERMESSTATUS_CLIENT_TAG:?set approved immutable candidate tag}
-    container_name: hermesstatus-client-2x
+  serverstatus-client:
+    image: ghcr.io/404404/serverstatus-client:${SERVERSTATUS_CLIENT_TAG:-${HERMESSTATUS_CLIENT_TAG:?set approved immutable candidate tag}}
+    container_name: serverstatus-client-2x
     restart: unless-stopped
     read_only: true
     network_mode: host
@@ -10,9 +10,9 @@ services:
       - no-new-privileges:true
     tmpfs:
       - /tmp:size=32m,mode=1777,nosuid,nodev,noexec
-      - /run/hermesstatus:size=4m,mode=0700,nosuid,nodev,noexec
+      - /run/serverstatus:size=4m,mode=0700,nosuid,nodev,noexec
     environment:
-      HERMESSTATUS_CONFIG_FILE: /run/secrets/hermesstatus/client-config.json
+      SERVERSTATUS_CONFIG_FILE: /run/secrets/serverstatus/client-config.json
       HOST_OS_RELEASE_FILE: /host/etc/os-release
       HWMON_ROOT: /sys/class/hwmon
       DOCKER_SOCKET: /var/run/docker.sock
@@ -21,6 +21,8 @@ services:
       - /etc/os-release:/host/etc/os-release:ro
       - /sys/class/hwmon:/sys/class/hwmon:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /home/hermes/status/config/client-config.json:/run/secrets/serverstatus/client-config.json:ro
       - /home/hermes/status/config/client-config.json:/run/secrets/hermesstatus/client-config.json:ro
+      - ${DEVICE_TOKEN_HOST:-/home/hermes/status/secrets/device-token}:/run/secrets/serverstatus-device-token:ro
       - ${DEVICE_TOKEN_HOST:-/home/hermes/status/secrets/device-token}:/run/secrets/hermesstatus-device-token:ro
       - /home/hermes/status/status:/var/lib/serverstatus-client

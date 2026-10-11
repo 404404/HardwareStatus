@@ -108,7 +108,7 @@ jobs:
           file: Dockerfile.server
           push: false
           load: true
-          tags: hermesstatus-server:publish-check
+          tags: serverstatus-server:publish-check
           build-args: |
             VERSION=${{ steps.provenance.outputs.product_version }}
             VCS_REF=${{ github.sha }}
@@ -120,7 +120,7 @@ jobs:
           file: Dockerfile.client
           push: false
           load: true
-          tags: hermesstatus-client:publish-check
+          tags: serverstatus-client:publish-check
           build-args: |
             VERSION=${{ steps.provenance.outputs.product_version }}
             VCS_REF=${{ github.sha }}
@@ -129,8 +129,8 @@ jobs:
       - name: Validate image provenance
         run: |
           python3 scripts/validate_image_provenance.py \
-            --server-image hermesstatus-server:publish-check \
-            --client-image hermesstatus-client:publish-check \
+            --server-image serverstatus-server:publish-check \
+            --client-image serverstatus-client:publish-check \
             --candidate-tag "${{ steps.provenance.outputs.candidate_tag }}" \
             --version "${{ steps.provenance.outputs.product_version }}" \
             --revision "${{ github.sha }}" \
@@ -159,13 +159,13 @@ jobs:
       - uses: docker/metadata-action@v5
         id: server_meta
         with:
-          images: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/hermesstatus-server
+          images: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/serverstatus-server
           tags: |
             type=raw,value=${{ steps.provenance.outputs.candidate_tag }}
       - uses: docker/metadata-action@v5
         id: client_meta
         with:
-          images: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/hermesstatus-client
+          images: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/serverstatus-client
           tags: |
             type=raw,value=${{ steps.provenance.outputs.candidate_tag }}
       - uses: docker/build-push-action@v6
@@ -177,14 +177,14 @@ jobs:
           tags: ${{ steps.server_meta.outputs.tags }}
           labels: |
             ${{ steps.server_meta.outputs.labels }}
-            org.opencontainers.image.title=HardwareStatus Server
-            org.opencontainers.image.description=HardwareStatus device status server
+            org.opencontainers.image.title=ServerStatus Server
+            org.opencontainers.image.description=ServerStatus device status server
             org.opencontainers.image.version=${{ steps.provenance.outputs.product_version }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.created=${{ steps.provenance.outputs.build_date }}
             org.opencontainers.image.source=${{ env.IMAGE_SOURCE }}
             org.opencontainers.image.licenses=MIT
-            io.hermesstatus.component=server
+            io.serverstatus.component=server
           build-args: |
             VERSION=${{ steps.provenance.outputs.product_version }}
             VCS_REF=${{ github.sha }}
@@ -199,14 +199,14 @@ jobs:
           tags: ${{ steps.client_meta.outputs.tags }}
           labels: |
             ${{ steps.client_meta.outputs.labels }}
-            org.opencontainers.image.title=HardwareStatus Client
-            org.opencontainers.image.description=HardwareStatus host and Hermes profile collector
+            org.opencontainers.image.title=ServerStatus Client
+            org.opencontainers.image.description=ServerStatus host and Hermes profile collector
             org.opencontainers.image.version=${{ steps.provenance.outputs.product_version }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.created=${{ steps.provenance.outputs.build_date }}
             org.opencontainers.image.source=${{ env.IMAGE_SOURCE }}
             org.opencontainers.image.licenses=MIT
-            io.hermesstatus.component=client
+            io.serverstatus.component=client
           build-args: |
             VERSION=${{ steps.provenance.outputs.product_version }}
             VCS_REF=${{ github.sha }}

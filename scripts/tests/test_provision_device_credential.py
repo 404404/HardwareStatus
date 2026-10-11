@@ -72,7 +72,7 @@ class ProvisionDeviceCredentialTests(unittest.TestCase):
             self.assertNotIn(token, stdout.getvalue())
             self.assertIn("device_id: device-alpha", stdout.getvalue())
             self.assertEqual(
-                [path for path in root.iterdir() if path.name.startswith(".hermesstatus-")],
+                [path for path in root.iterdir() if path.name.startswith(".serverstatus-")],
                 [],
             )
 
