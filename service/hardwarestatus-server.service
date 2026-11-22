@@ -1,0 +1,20 @@
+[Unit]
+Description=HardwareStatus Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/usr/local/HardwareStatus
+EnvironmentFile=-/etc/hardwarestatus/server.conf
+ExecStart=/usr/local/bin/hardwarestatus-server --config=/etc/hardwarestatus/config.json --web-dir=/usr/local/HardwareStatus/web
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/hardwarestatus /usr/local/HardwareStatus/web/json
+
+[Install]
+WantedBy=multi-user.target

@@ -1,8 +1,9 @@
 # Configuration
 
-HardwareStatus configuration is explicit and fail-closed. The public project
-name is HardwareStatus; compatibility paths and variables such as
-`HERMESSTATUS_CONFIG_FILE` remain unchanged.
+HardwareStatus configuration is explicit and fail-closed. New deployments use
+`HARDWARESTATUS_*`; matching `HERMESSTATUS_*` variables remain accepted aliases.
+If both aliases are supplied with different values, startup fails closed.
+Existing data and secret paths are not renamed automatically.
 
 ## Server and Device Registry
 
@@ -12,11 +13,14 @@ container and state writable only at its dedicated data path. Validate the
 device configuration before start:
 
 ```sh
-serverstatus --validate-device-config \
+hardwarestatus-server --validate-device-config \
   --device-registry /absolute/path/devices.json \
   --device-credentials /absolute/path/credentials.d \
   --legacy-device-mapping /absolute/path/legacy-device-mapping.json
 ```
+
+The legacy `serverstatus` executable path remains available in the container
+as an invocation alias for existing scripts.
 
 Use a separate Device v2 identity and token for every Client. Registry display
 names are authoritative. Do not put device tokens, Server admin tokens, or CA
@@ -26,7 +30,7 @@ document.
 ## Unified Client configuration
 
 New deployments use the strict JSON document selected by
-`HERMESSTATUS_CONFIG_FILE`, conventionally mounted read-only at
+`HARDWARESTATUS_CONFIG_FILE` (legacy alias `HERMESSTATUS_CONFIG_FILE`), conventionally mounted read-only at
 `/run/secrets/hermesstatus/client-config.json`. The Device v2 token stays in a
 separate read-only file at `/run/secrets/hermesstatus-device-token`.
 

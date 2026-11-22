@@ -1,12 +1,12 @@
 services:
-  serverstatus-client:
+  hardwarestatus-client:
     build:
       context: .
       dockerfile: Dockerfile.client
       args:
         ALPINE_IMAGE: "${CLIENT_ALPINE_IMAGE:-alpine:3.13}"
-    image: cppla/serverstatus:client
-    container_name: serverstatus-client
+    image: ghcr.io/404404/hardwarestatus-client:local
+    container_name: hardwarestatus-client
     restart: unless-stopped
     read_only: true
     security_opt:

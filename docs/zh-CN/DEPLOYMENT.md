@@ -1,11 +1,11 @@
 # 部署
 
-只能部署已记录 candidate 的 GitHub CI 不可变镜像。仓库已更名，但当前已发布包名仍特意保留
-`hermesstatus-server` 与 `hermesstatus-client`。
+只能部署已记录 candidate 的 GitHub CI 不可变镜像。新候选使用 HardwareStatus canonical
+镜像包名：
 
 ```yaml
-image: ghcr.io/404404/hermesstatus-server@sha256:<已批准的-server-digest>
-image: ghcr.io/404404/hermesstatus-client@sha256:<已批准的-client-digest>
+image: ghcr.io/404404/hardwarestatus-server@sha256:<已批准的-server-digest>
+image: ghcr.io/404404/hardwarestatus-client@sha256:<已批准的-client-digest>
 ```
 
 不得改用 `latest`、宽泛版本 tag 或本地 build。任何变更前，确认每个 image 的 OCI revision

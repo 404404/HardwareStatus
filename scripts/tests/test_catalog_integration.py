@@ -40,12 +40,22 @@ def client_config():
             "org.opencontainers.image.created": CREATED,
             "org.opencontainers.image.source": "https://github.com/404404/HardwareStatus",
             "org.opencontainers.image.licenses": "MIT",
+            "io.hardwarestatus.component": "client",
             "io.hermesstatus.component": "client",
+            "io.hardwarestatus.unifi.catalog.revision": CATALOG_REVISION,
+            "io.hardwarestatus.unifi.catalog.schema_version": "1",
+            "io.hardwarestatus.unifi.catalog.sha256": CATALOG_SHA256,
             "io.hermesstatus.unifi.catalog.revision": CATALOG_REVISION,
             "io.hermesstatus.unifi.catalog.schema_version": "1",
             "io.hermesstatus.unifi.catalog.sha256": CATALOG_SHA256,
         },
         "Env": [
+            "HARDWARESTATUS_CLIENT_VERSION=2.7",
+            "HARDWARESTATUS_CLIENT_REVISION=" + REVISION,
+            "HARDWARESTATUS_CLIENT_BUILD_TIME=" + CREATED,
+            "HARDWARESTATUS_UNIFI_CATALOG_REVISION=" + CATALOG_REVISION,
+            "HARDWARESTATUS_UNIFI_CATALOG_SCHEMA_VERSION=1",
+            "HARDWARESTATUS_UNIFI_CATALOG_SHA256=" + CATALOG_SHA256,
             "HERMESSTATUS_CLIENT_VERSION=2.7",
             "HERMESSTATUS_CLIENT_REVISION=" + REVISION,
             "HERMESSTATUS_CLIENT_BUILD_TIME=" + CREATED,
@@ -58,8 +68,9 @@ def client_config():
 
 def server_config():
     config = copy.deepcopy(client_config())
-    config["Entrypoint"] = ["/usr/local/bin/serverstatus"]
+    config["Entrypoint"] = ["/usr/local/bin/hardwarestatus-server"]
     config["Labels"]["org.opencontainers.image.title"] = "HardwareStatus Server"
+    config["Labels"]["io.hardwarestatus.component"] = "server"
     config["Labels"]["io.hermesstatus.component"] = "server"
     for key in tuple(config["Labels"]):
         if key.startswith("io.hermesstatus.unifi.catalog."):
@@ -74,8 +85,8 @@ class CatalogAcquisitionTests(unittest.TestCase):
         provenance = json.loads(
             (ROOT / "clients/unifi_catalog/catalog-provenance.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(lock["revision"], "486dacbcb8d0f14e5ee171ce99c6a5ffabc0fb62")
-        self.assertEqual(lock["catalog_sha256"], "2251eddb656af89483a3497ca2fe46bf60339c3f96ae38b3390761d7f379a371")
+        self.assertEqual(lock["revision"], "008d34c0de597fa6fce9c28a0a9a2c2fc0ce6759")
+        self.assertEqual(lock["catalog_sha256"], "64bd0a6d3dc10b97119b5147535f0be07376c32d0aca31bd840f87ec6830eefd")
         self.assertEqual(provenance, {
             "catalog_sha256": lock["catalog_sha256"],
             "catalog_schema_version": lock["schema_version"],
@@ -90,12 +101,12 @@ class CatalogAcquisitionTests(unittest.TestCase):
             output = pathlib.Path(directory)
             (output / "catalog.json").write_bytes(bundle)
             (output / "catalog.sha256").write_text(
-                "2251eddb656af89483a3497ca2fe46bf60339c3f96ae38b3390761d7f379a371  catalog.json\n",
+                "64bd0a6d3dc10b97119b5147535f0be07376c32d0aca31bd840f87ec6830eefd  catalog.json\n",
                 encoding="ascii",
             )
             (output / "manifest.json").write_text(
                 json.dumps({
-                    "bundle_sha256": "2251eddb656af89483a3497ca2fe46bf60339c3f96ae38b3390761d7f379a371",
+                    "bundle_sha256": "64bd0a6d3dc10b97119b5147535f0be07376c32d0aca31bd840f87ec6830eefd",
                     "catalog_schema_version": 1,
                     "model_count": len(json.loads(bundle)["models"]),
                 }, sort_keys=True),

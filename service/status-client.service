@@ -1,5 +1,7 @@
 [Unit]
-Description=ServerStatus-Client
+# Legacy unit for existing /usr/local/ServerStatus installations. New installs
+# should use hardwarestatus-client.service; this unit is intentionally retained.
+Description=Legacy ServerStatus-Client
 After=network.target
 [Service]
 ExecStart=/usr/bin/python3 /usr/local/ServerStatus/clients/client-linux.py

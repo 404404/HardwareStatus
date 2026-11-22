@@ -1,7 +1,8 @@
 # Unified Client configuration
 
 The preferred Client configuration is the strict JSON document validated by
-`schemas/client-config.schema.json`. Set `HERMESSTATUS_CONFIG_FILE` to a
+`schemas/client-config.schema.json`. Set `HARDWARESTATUS_CONFIG_FILE` (legacy
+alias `HERMESSTATUS_CONFIG_FILE`) to a
 read-only mount, conventionally
 `/run/secrets/hermesstatus/client-config.json`; keep the Device v2 token as the
 separate read-only `/run/secrets/hermesstatus-device-token` mount.

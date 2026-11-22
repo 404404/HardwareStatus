@@ -101,16 +101,16 @@ class UniFiModelCatalogTests(unittest.TestCase):
         self.assertEqual(resolve_model(catalog, "UCG-Max", explicit_sku=True)["canonical_sku"], "UCG-Max")
 
     def test_catalog_revision_and_checksum_are_pinned(self):
-        self.assertEqual(CATALOG_SOURCE_REVISION, "486dacbcb8d0f14e5ee171ce99c6a5ffabc0fb62")
-        self.assertEqual(CATALOG_BUNDLE_SHA256, "2251eddb656af89483a3497ca2fe46bf60339c3f96ae38b3390761d7f379a371")
+        self.assertEqual(CATALOG_SOURCE_REVISION, "008d34c0de597fa6fce9c28a0a9a2c2fc0ce6759")
+        self.assertEqual(CATALOG_BUNDLE_SHA256, "64bd0a6d3dc10b97119b5147535f0be07376c32d0aca31bd840f87ec6830eefd")
         manifest = CATALOG_BUNDLE_PATH.with_name("catalog.sha256").read_text(encoding="ascii").strip()
         self.assertEqual(manifest, CATALOG_BUNDLE_SHA256 + "  catalog.json")
 
     def test_u6_enterprise_inwall_static_speeds_are_pinned_from_catalog(self):
         catalog = load_catalog()
         ports = project_static_capabilities(catalog["U6-Enterprise-IW"])["ports"]["items"]
-        self.assertEqual(ports[0]["max_speed_mbps"], 1000)
-        self.assertEqual(ports[4]["max_speed_mbps"], 2500)
+        self.assertEqual(ports[0]["max_speed_mbps"], 2500)
+        self.assertEqual(ports[4]["max_speed_mbps"], 1000)
 
     def test_static_projection_preserves_bundle_shape_without_runtime_aliases(self):
         catalog = load_catalog()

@@ -1260,7 +1260,11 @@ def _single_port_ap_runtime(device, model, static_ports, raw_ports):
         for port in raw_ports if isinstance(port, dict)
     ):
         return None
-    candidates = [
+    # For a one-port AP, an explicitly observed wired uplink has exactly one
+    # physical destination even when the static catalog does not classify its
+    # port role. Do not generalize this positional association to multi-port
+    # devices.
+    candidates = list(static_ports.values()) if len(static_ports) == 1 else [
         port for port in static_ports.values()
         if "uplink" in port.get("roles", []) and "data_in" in port.get("roles", [])
     ]

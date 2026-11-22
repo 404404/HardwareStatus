@@ -1,0 +1,198 @@
+name: Publish HardwareStatus Candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact full source commit SHA to build
+        required: true
+        type: string
+      version:
+        description: Candidate product version (for example 2.8)
+        required: true
+        default: "2.8"
+        type: string
+
+concurrency:
+  group: hardwarestatus-candidate-${{ inputs.source_sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 1
+      - name: Verify immutable source input
+        env:
+          EXPECTED_SHA: ${{ inputs.source_sha }}
+          PRODUCT_VERSION: ${{ inputs.version }}
+        run: |
+          test "$EXPECTED_SHA" = "$(git rev-parse HEAD)"
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$PRODUCT_VERSION" =~ ^2\.[0-9]+$ ]]
+          version_minor="${PRODUCT_VERSION#2.}"
+          (( version_minor >= 8 ))
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - run: python3 scripts/validate_migration_contracts.py
+      - run: python3 -m unittest discover -s clients -p 'test_*.py'
+      - run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
+      - run: python3 -m py_compile clients/client-linux.py clients/client-psutil.py clients/host_collector.py scripts/export-hermes-status.py scripts/hermes_config_summary.py
+      - run: sh -n clients/entrypoint.sh && bash -n status.sh
+      - run: go test ./...
+        working-directory: server
+      - run: go test -race ./...
+        working-directory: server
+      - run: go vet ./...
+        working-directory: server
+      - run: go build ./...
+        working-directory: server
+      - run: find web -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+      - run: node --test web/js/app.test.js
+      - run: python3 scripts/check_release_boundaries.py
+      - run: python3 scripts/check_unifi_static_authority.py
+      - run: docker compose -f docker-compose-server.yml config --quiet
+      - run: SERVER=192.0.2.10 SERVERSTATUS_USER=ci-node PASSWORD=ci-placeholder docker compose -f docker-compose-client.yml config --quiet
+
+  publish:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 1
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare exact immutable candidate
+        id: candidate
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          PRODUCT_VERSION: ${{ inputs.version }}
+        run: |
+          test "$SOURCE_SHA" = "$(git rev-parse HEAD)"
+          candidate_tag="${PRODUCT_VERSION}-${SOURCE_SHA:0:12}"
+          owner="$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          for image in \
+            "ghcr.io/${owner}/hardwarestatus-server:${candidate_tag}" \
+            "ghcr.io/${owner}/hardwarestatus-client:${candidate_tag}"; do
+            if output="$(docker buildx imagetools inspect "$image" 2>&1)"; then
+              echo "candidate tag already exists; refusing overwrite"
+              exit 1
+            elif ! grep -Eqi 'manifest unknown|not found|404' <<<"$output"; then
+              echo "unable to prove candidate tag is absent; refusing publication"
+              exit 1
+            fi
+          done
+          echo "candidate_tag=${candidate_tag}" >> "$GITHUB_OUTPUT"
+          echo "owner=${owner}" >> "$GITHUB_OUTPUT"
+          echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+          echo "catalog_revision=$(python3 -c 'import json; print(json.load(open("unifi-catalog.lock.json"))["revision"])')" >> "$GITHUB_OUTPUT"
+          echo "catalog_sha256=$(python3 -c 'import json; print(json.load(open("unifi-catalog.lock.json"))["catalog_sha256"])')" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        id: server_image
+        with:
+          context: .
+          file: Dockerfile.server
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/hardwarestatus-server:${{ steps.candidate.outputs.candidate_tag }}
+          labels: |
+            org.opencontainers.image.title=HardwareStatus Server
+            org.opencontainers.image.version=${{ inputs.version }}
+            org.opencontainers.image.revision=${{ inputs.source_sha }}
+            org.opencontainers.image.created=${{ steps.candidate.outputs.created }}
+            org.opencontainers.image.source=https://github.com/404404/HardwareStatus
+            org.opencontainers.image.licenses=MIT
+            io.hardwarestatus.component=server
+            io.hermesstatus.component=server
+          build-args: |
+            VERSION=${{ inputs.version }}
+            VCS_REF=${{ inputs.source_sha }}
+            BUILD_DATE=${{ steps.candidate.outputs.created }}
+            SOURCE_URL=https://github.com/404404/HardwareStatus
+      - uses: docker/build-push-action@v6
+        id: client_image
+        with:
+          context: .
+          file: Dockerfile.client
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/hardwarestatus-client:${{ steps.candidate.outputs.candidate_tag }}
+          labels: |
+            org.opencontainers.image.title=HardwareStatus Client
+            org.opencontainers.image.version=${{ inputs.version }}
+            org.opencontainers.image.revision=${{ inputs.source_sha }}
+            org.opencontainers.image.created=${{ steps.candidate.outputs.created }}
+            org.opencontainers.image.source=https://github.com/404404/HardwareStatus
+            org.opencontainers.image.licenses=MIT
+            io.hardwarestatus.component=client
+            io.hermesstatus.component=client
+            io.hardwarestatus.unifi.catalog.revision=${{ steps.candidate.outputs.catalog_revision }}
+            io.hardwarestatus.unifi.catalog.schema_version=1
+            io.hardwarestatus.unifi.catalog.sha256=${{ steps.candidate.outputs.catalog_sha256 }}
+            io.hermesstatus.unifi.catalog.revision=${{ steps.candidate.outputs.catalog_revision }}
+            io.hermesstatus.unifi.catalog.schema_version=1
+            io.hermesstatus.unifi.catalog.sha256=${{ steps.candidate.outputs.catalog_sha256 }}
+          build-args: |
+            VERSION=${{ inputs.version }}
+            VCS_REF=${{ inputs.source_sha }}
+            BUILD_DATE=${{ steps.candidate.outputs.created }}
+            SOURCE_URL=https://github.com/404404/HardwareStatus
+            CATALOG_REVISION=${{ steps.candidate.outputs.catalog_revision }}
+            CATALOG_SCHEMA_VERSION=1
+            CATALOG_SHA256=${{ steps.candidate.outputs.catalog_sha256 }}
+      - name: Verify published immutable manifests
+        env:
+          TAG: ${{ steps.candidate.outputs.candidate_tag }}
+          OWNER: ${{ steps.candidate.outputs.owner }}
+          VERSION: ${{ inputs.version }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          CREATED: ${{ steps.candidate.outputs.created }}
+          CATALOG_REVISION: ${{ steps.candidate.outputs.catalog_revision }}
+          CATALOG_SHA256: ${{ steps.candidate.outputs.catalog_sha256 }}
+          SERVER_DIGEST: ${{ steps.server_image.outputs.digest }}
+          CLIENT_DIGEST: ${{ steps.client_image.outputs.digest }}
+        run: |
+          server="ghcr.io/${OWNER}/hardwarestatus-server:${TAG}"
+          client="ghcr.io/${OWNER}/hardwarestatus-client:${TAG}"
+          docker buildx imagetools inspect "$server" | grep -F 'linux/amd64'
+          docker buildx imagetools inspect "$client" | grep -F 'linux/amd64'
+          docker pull "$server"
+          docker pull "$client"
+          python3 scripts/validate_image_provenance.py \
+            --server-image "$server" \
+            --client-image "$client" \
+            --candidate-tag "$TAG" \
+            --version "$VERSION" \
+            --revision "$SOURCE_SHA" \
+            --created "$CREATED" \
+            --source https://github.com/404404/HardwareStatus \
+            --catalog-revision "$CATALOG_REVISION" \
+            --catalog-schema-version 1 \
+            --catalog-sha256 "$CATALOG_SHA256"
+          echo "SERVER_DIGEST=${SERVER_DIGEST}"
+          echo "CLIENT_DIGEST=${CLIENT_DIGEST}"

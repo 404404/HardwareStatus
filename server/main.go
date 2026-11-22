@@ -17,38 +17,39 @@ import (
 )
 
 func main() {
+	_ = envAlias("HARDWARESTATUS_DEPLOYMENT_ENV", "HERMESSTATUS_DEPLOYMENT_ENV", "")
 	var opts Options
 	var legacyBind string
 	var legacyPort int
 	var printVersion bool
 	var validateDeviceConfig bool
 
-	flag.StringVar(&opts.ConfigPath, "config", envOr("CONFIG_PATH", "config.json"), "configuration file")
-	flag.StringVar(&opts.ConfigPath, "c", envOr("CONFIG_PATH", "config.json"), "configuration file (shorthand)")
-	flag.StringVar(&opts.StatsPath, "stats", os.Getenv("STATS_PATH"), "persistent stats JSON file")
-	flag.StringVar(&opts.PersistencePath, "state", os.Getenv("PERSISTENCE_PATH"), "multi-device state persistence file")
-	flag.StringVar(&opts.RegistryPath, "device-registry", os.Getenv("DEVICE_REGISTRY_PATH"), "read-only device registry")
-	flag.StringVar(&opts.LegacyMappingPath, "legacy-device-mapping", os.Getenv("LEGACY_DEVICE_MAPPING_PATH"), "read-only legacy username mapping")
-	flag.StringVar(&opts.DeviceCredentialsDir, "device-credentials", os.Getenv("HERMESSTATUS_DEVICE_CREDENTIALS_DIR"), "read-only device credential directory")
-	flag.BoolVar(&opts.DeviceEndpointEnabled, "device-endpoint", envBool("HERMESSTATUS_DEVICE_ENDPOINT_ENABLED", false), "enable the authenticated device update endpoint")
-	flag.BoolVar(&opts.TrustedProxyMode, "device-trusted-proxy", envBool("HERMESSTATUS_DEVICE_TRUSTED_PROXY", false), "trust HTTPS forwarding only from explicit proxy addresses")
-	flag.StringVar(&opts.TrustedProxyCIDRs, "device-trusted-proxy-cidrs", os.Getenv("HERMESSTATUS_DEVICE_TRUSTED_PROXY_CIDRS"), "comma-separated trusted proxy addresses or CIDRs")
-	flag.StringVar(&opts.WebDir, "web-dir", envOr("WEB_DIR", "../web"), "WebUI directory")
-	flag.StringVar(&opts.WebDir, "d", envOr("WEB_DIR", "../web"), "WebUI directory (shorthand)")
-	flag.StringVar(&opts.HTTPAddr, "http", envOr("HTTP_ADDR", ":8080"), "HTTP listen address")
-	flag.StringVar(&opts.AgentAddr, "agent", envOr("AGENT_ADDR", ":35601"), "agent TCP listen address")
+	flag.StringVar(&opts.ConfigPath, "config", envAlias("HARDWARESTATUS_CONFIG_PATH", "CONFIG_PATH", defaultConfigPath()), "configuration file")
+	flag.StringVar(&opts.ConfigPath, "c", envAlias("HARDWARESTATUS_CONFIG_PATH", "CONFIG_PATH", defaultConfigPath()), "configuration file (shorthand)")
+	flag.StringVar(&opts.StatsPath, "stats", envAlias("HARDWARESTATUS_STATS_PATH", "STATS_PATH", ""), "persistent stats JSON file")
+	flag.StringVar(&opts.PersistencePath, "state", envAlias("HARDWARESTATUS_PERSISTENCE_PATH", "PERSISTENCE_PATH", ""), "multi-device state persistence file")
+	flag.StringVar(&opts.RegistryPath, "device-registry", envAlias("HARDWARESTATUS_DEVICE_REGISTRY_PATH", "DEVICE_REGISTRY_PATH", ""), "read-only device registry")
+	flag.StringVar(&opts.LegacyMappingPath, "legacy-device-mapping", envAlias("HARDWARESTATUS_LEGACY_DEVICE_MAPPING_PATH", "LEGACY_DEVICE_MAPPING_PATH", ""), "read-only legacy username mapping")
+	flag.StringVar(&opts.DeviceCredentialsDir, "device-credentials", envAlias("HARDWARESTATUS_DEVICE_CREDENTIALS_DIR", "HERMESSTATUS_DEVICE_CREDENTIALS_DIR", ""), "read-only device credential directory")
+	flag.BoolVar(&opts.DeviceEndpointEnabled, "device-endpoint", envBoolAlias("HARDWARESTATUS_DEVICE_ENDPOINT_ENABLED", "HERMESSTATUS_DEVICE_ENDPOINT_ENABLED", false), "enable the authenticated device update endpoint")
+	flag.BoolVar(&opts.TrustedProxyMode, "device-trusted-proxy", envBoolAlias("HARDWARESTATUS_DEVICE_TRUSTED_PROXY", "HERMESSTATUS_DEVICE_TRUSTED_PROXY", false), "trust HTTPS forwarding only from explicit proxy addresses")
+	flag.StringVar(&opts.TrustedProxyCIDRs, "device-trusted-proxy-cidrs", envAlias("HARDWARESTATUS_DEVICE_TRUSTED_PROXY_CIDRS", "HERMESSTATUS_DEVICE_TRUSTED_PROXY_CIDRS", ""), "comma-separated trusted proxy addresses or CIDRs")
+	flag.StringVar(&opts.WebDir, "web-dir", envAlias("HARDWARESTATUS_WEB_DIR", "WEB_DIR", defaultWebDir()), "WebUI directory")
+	flag.StringVar(&opts.WebDir, "d", envAlias("HARDWARESTATUS_WEB_DIR", "WEB_DIR", defaultWebDir()), "WebUI directory (shorthand)")
+	flag.StringVar(&opts.HTTPAddr, "http", envAlias("HARDWARESTATUS_HTTP_ADDR", "HTTP_ADDR", defaultHTTPAddr()), "HTTP listen address")
+	flag.StringVar(&opts.AgentAddr, "agent", envAlias("HARDWARESTATUS_AGENT_ADDR", "AGENT_ADDR", ":35601"), "agent TCP listen address")
 	flag.StringVar(&legacyBind, "bind", "", "agent bind address (legacy compatibility)")
 	flag.StringVar(&legacyBind, "b", "", "agent bind address (legacy shorthand)")
 	flag.IntVar(&legacyPort, "port", 0, "agent TCP port (legacy compatibility)")
 	flag.IntVar(&legacyPort, "p", 0, "agent TCP port (legacy shorthand)")
-	flag.BoolVar(&opts.Verbose, "verbose", envBool("VERBOSE", false), "verbose HTTP logging")
-	flag.BoolVar(&opts.Verbose, "v", envBool("VERBOSE", false), "verbose HTTP logging (shorthand)")
+	flag.BoolVar(&opts.Verbose, "verbose", envBoolAlias("HARDWARESTATUS_VERBOSE", "VERBOSE", false), "verbose HTTP logging")
+	flag.BoolVar(&opts.Verbose, "v", envBoolAlias("HARDWARESTATUS_VERBOSE", "VERBOSE", false), "verbose HTTP logging (shorthand)")
 	flag.BoolVar(&printVersion, "version", false, "print version and exit")
 	flag.BoolVar(&validateDeviceConfig, "validate-device-config", false, "validate read-only multi-device configuration and exit")
 	flag.Parse()
 
 	if printVersion {
-		fmt.Printf("serverstatus %s commit=%s built=%s\n", version, commit, buildTime)
+		fmt.Printf("hardwarestatus-server %s commit=%s built=%s\n", version, commit, buildTime)
 		return
 	}
 	if validateDeviceConfig {
@@ -76,8 +77,8 @@ func main() {
 		}
 		opts.AgentAddr = net.JoinHostPort(legacyBind, strconv.Itoa(legacyPort))
 	}
-	opts.AdminToken = os.Getenv("ADMIN_TOKEN")
-	opts.CORSOrigin = os.Getenv("ADMIN_CORS_ORIGIN")
+	opts.AdminToken = envAlias("HARDWARESTATUS_ADMIN_TOKEN", "ADMIN_TOKEN", "")
+	opts.CORSOrigin = envAlias("HARDWARESTATUS_ADMIN_CORS_ORIGIN", "ADMIN_CORS_ORIGIN", "")
 
 	if err := os.MkdirAll(filepath.Dir(opts.StatsPath), 0o755); err != nil {
 		fatalf("create stats directory: %v", err)
@@ -144,6 +145,51 @@ func envOr(name, fallback string) string {
 	return fallback
 }
 
+func envAlias(canonical, legacy, fallback string) string {
+	canonicalValue, canonicalSet := os.LookupEnv(canonical)
+	legacyValue, legacySet := os.LookupEnv(legacy)
+	value, err := resolveEnvironmentAliasValues(
+		canonicalValue, canonicalSet, legacyValue, legacySet, fallback,
+	)
+	if err != nil {
+		fatalf("conflicting canonical and legacy environment aliases: %s", canonical)
+	}
+	return value
+}
+
+func envBoolAlias(canonical, legacy string, fallback bool) bool {
+	value := envAlias(canonical, legacy, "")
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		fatalf("invalid boolean environment value: %s", canonical)
+	}
+	return parsed
+}
+
+func defaultConfigPath() string {
+	if _, err := os.Stat("/app/config/config.json"); err == nil {
+		return "/app/config/config.json"
+	}
+	return "config.json"
+}
+
+func defaultWebDir() string {
+	if info, err := os.Stat("/app/web"); err == nil && info.IsDir() {
+		return "/app/web"
+	}
+	return "../web"
+}
+
+func defaultHTTPAddr() string {
+	if info, err := os.Stat("/app/web"); err == nil && info.IsDir() {
+		return ":80"
+	}
+	return ":8080"
+}
+
 func envBool(name string, fallback bool) bool {
 	value := strings.TrimSpace(os.Getenv(name))
 	if value == "" {
@@ -157,6 +203,6 @@ func envBool(name string, fallback bool) bool {
 }
 
 func fatalf(format string, args ...any) {
-	fmt.Fprintf(os.Stderr, "serverstatus: "+format+"\n", args...)
+	fmt.Fprintf(os.Stderr, "hardwarestatus-server: "+format+"\n", args...)
 	os.Exit(1)
 }

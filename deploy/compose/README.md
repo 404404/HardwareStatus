@@ -1,11 +1,12 @@
 # Canonical Compose contract
 
-The repository is HardwareStatus. Existing Compose variable names, container
-names, mount paths, and GHCR packages beginning with `hermesstatus` are
-compatibility contracts and remain unchanged.
+New deployments use canonical `hardwarestatus-*` service/container names,
+`ghcr.io/404404/hardwarestatus-*` packages, and `HARDWARESTATUS_*` tag/config
+variables. Existing runtime paths beginning with `hermesstatus` remain mounted
+unchanged for compatibility; see [the migration contract](../../docs/RENAME_COMPATIBILITY.md).
 
-Published deployments set `HERMESSTATUS_SERVER_TAG` and
-`HERMESSTATUS_CLIENT_TAG` to the same approved candidate revision. Prefer an
+New deployment templates use `HARDWARESTATUS_SERVER_TAG` and
+`HARDWARESTATUS_CLIENT_TAG` for the same approved candidate revision. Prefer an
 exact image digest in the final Compose service; do not use `latest`, an
 unqualified broad version tag, or local qualification tags. Verify the Server
 and Client OCI revision before creating either container.

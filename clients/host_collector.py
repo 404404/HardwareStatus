@@ -413,11 +413,18 @@ def collect_client_build(environ=None, protocol=None):
     to be rejected by the strict server-side contract.
     """
     environment = os.environ if environ is None else environ
+    def metadata_value(name):
+        canonical = environment.get("HARDWARESTATUS_" + name.removeprefix("HERMESSTATUS_"))
+        legacy = environment.get(name)
+        if canonical is not None and legacy is not None and canonical != legacy:
+            return None
+        return canonical if canonical is not None else legacy
+
     values = {
-        "version": _nullable_text(environment.get("HERMESSTATUS_CLIENT_VERSION"), 64),
-        "revision": _nullable_text(environment.get("HERMESSTATUS_CLIENT_REVISION"), 64),
-        "build_time": _nullable_text(environment.get("HERMESSTATUS_CLIENT_BUILD_TIME"), 64),
-        "protocol": _nullable_text(protocol or environment.get("HERMESSTATUS_CLIENT_PROTOCOL"), 64),
+        "version": _nullable_text(metadata_value("HERMESSTATUS_CLIENT_VERSION"), 64),
+        "revision": _nullable_text(metadata_value("HERMESSTATUS_CLIENT_REVISION"), 64),
+        "build_time": _nullable_text(metadata_value("HERMESSTATUS_CLIENT_BUILD_TIME"), 64),
+        "protocol": _nullable_text(protocol or metadata_value("HERMESSTATUS_CLIENT_PROTOCOL"), 64),
     }
     if not all(values[key] is not None for key in ("version", "revision", "protocol")):
         return None

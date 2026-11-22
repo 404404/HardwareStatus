@@ -111,6 +111,7 @@ def _run_fixed(remote_script, config):
         "DISPLAY": "hermesstatus-unifi",
         # This is a path, never the credential value. The bundled askpass
         # executable reads the already-validated file only for the prompt.
+        "HARDWARESTATUS_UNIFI_CREDENTIAL_FILE": config.credential_file,
         "HERMESSTATUS_UNIFI_CREDENTIAL_FILE": config.credential_file,
     })
     # _run_bounded() already starts the fixed command in a new session so its

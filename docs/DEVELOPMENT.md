@@ -2,8 +2,9 @@
 
 Develop against the current `2.0` branch of
 [404404/HardwareStatus](https://github.com/404404/HardwareStatus). The source
-tree retains several `hermesstatus` compatibility names; do not rename runtime
-interfaces merely because the repository changed name.
+tree retains documented `hermesstatus` compatibility interfaces. New
+deployment resources use `hardwarestatus-*`; change a runtime alias only with
+an explicit compatibility mapping and conflict tests.
 
 ## Change discipline
 

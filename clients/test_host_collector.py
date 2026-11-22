@@ -1196,6 +1196,28 @@ class HostCollectorTests(unittest.TestCase):
                 "HERMESSTATUS_CLIENT_PROTOCOL": "device_v2",
             })
         )
+        self.assertEqual(
+            collect_client_build({
+                "HARDWARESTATUS_CLIENT_VERSION": "2.8",
+                "HARDWARESTATUS_CLIENT_REVISION": "a" * 40,
+                "HARDWARESTATUS_CLIENT_BUILD_TIME": "2026-08-11T00:00:00Z",
+                "HARDWARESTATUS_CLIENT_PROTOCOL": "device_v2",
+            }),
+            {
+                "version": "2.8",
+                "revision": "a" * 40,
+                "build_time": "2026-08-11T00:00:00Z",
+                "protocol": "device_v2",
+            },
+        )
+        self.assertIsNone(
+            collect_client_build({
+                "HARDWARESTATUS_CLIENT_VERSION": "2.8",
+                "HERMESSTATUS_CLIENT_VERSION": "2.7",
+                "HARDWARESTATUS_CLIENT_REVISION": "a" * 40,
+                "HARDWARESTATUS_CLIENT_PROTOCOL": "device_v2",
+            })
+        )
 
     def test_extension_payload_exposes_client_build_at_the_root(self):
         build = {"version": "2.5", "revision": "abcdef012345", "protocol": "device_v2", "build_time": None}

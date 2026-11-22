@@ -1,7 +1,8 @@
 # 配置
 
-HardwareStatus 配置显式且 fail-closed。公开项目名称为 HardwareStatus；
-`HERMESSTATUS_CONFIG_FILE` 等兼容路径和变量保持不变。
+HardwareStatus 配置显式且 fail-closed。新部署使用 `HARDWARESTATUS_*`；对应的
+`HERMESSTATUS_*` 变量仍为受支持 alias。若新旧 alias 同时设置且值不同，启动将拒绝继续。
+已有数据目录与秘密路径不会自动改名。
 
 ## Server 与 Device Registry
 
@@ -9,18 +10,20 @@ Server 需要 Device Registry、只保存凭据 digest 的目录和持久化状�
 应在容器中只读，状态只能写入专用数据路径。启动前执行：
 
 ```sh
-serverstatus --validate-device-config \
+hardwarestatus-server --validate-device-config \
   --device-registry /absolute/path/devices.json \
   --device-credentials /absolute/path/credentials.d \
   --legacy-device-mapping /absolute/path/legacy-device-mapping.json
 ```
+
+容器仍保留 `serverstatus` 可执行文件兼容路径，供既有脚本调用。
 
 每个 Client 必须使用独立 Device v2 identity/token，Registry display name 是权威名称。不得把
 Device token、Server admin token 或 CA 私钥写入仓库、环境变量、命令行或状态文档。
 
 ## 统一 Client 配置
 
-新部署使用由 `HERMESSTATUS_CONFIG_FILE` 选择的严格 JSON，惯例只读挂载到
+新部署使用由 `HARDWARESTATUS_CONFIG_FILE`（旧 alias `HERMESSTATUS_CONFIG_FILE`）选择的严格 JSON，惯例只读挂载到
 `/run/secrets/hermesstatus/client-config.json`。Device v2 token 单独只读挂载到
 `/run/secrets/hermesstatus-device-token`。
 

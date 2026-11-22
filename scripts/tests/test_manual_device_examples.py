@@ -52,9 +52,10 @@ class ManualDeviceExampleTests(unittest.TestCase):
         path = EXAMPLES / "docker-compose-server.override.example.yml"
         source = path.read_text(encoding="utf-8")
         for required in (
-            "DEVICE_REGISTRY_PATH: /etc/hermesstatus/devices.json",
-            "HERMESSTATUS_DEVICE_CREDENTIALS_DIR: /etc/hermesstatus/credentials.d",
-            "LEGACY_DEVICE_MAPPING_PATH: /etc/hermesstatus/legacy-device-mapping.json",
+            "HARDWARESTATUS_DEVICE_REGISTRY_PATH: /etc/hermesstatus/devices.json",
+            "HARDWARESTATUS_DEVICE_CREDENTIALS_DIR: /etc/hermesstatus/credentials.d",
+            "HARDWARESTATUS_LEGACY_DEVICE_MAPPING_PATH: /etc/hermesstatus/legacy-device-mapping.json",
+            "HARDWARESTATUS_PERSISTENCE_PATH: /var/lib/hermesstatus/state-v2.json",
             "./device-registry.example.json:/etc/hermesstatus/devices.json:ro",
             "./credentials.d:/etc/hermesstatus/credentials.d:ro",
             "./legacy-device-mapping.example.json:/etc/hermesstatus/legacy-device-mapping.json:ro",
