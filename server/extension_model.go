@@ -95,6 +95,8 @@ const (
 	MaxUniFiAPILags              = 16
 	MaxUniFiAPITopologyLinks     = 32
 	MaxUniFiAPIAnomalyTypes      = 4
+	MaxUniFiRPSDevices           = 8
+	MaxUniFiRPSPorts             = 6
 )
 
 type DiskSMARTStatus string

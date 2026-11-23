@@ -83,6 +83,9 @@
     },
     "api": {
       "$ref": "#/$defs/api"
+    },
+    "rps": {
+      "$ref": "#/$defs/rps"
     }
   },
   "additionalProperties": false,
@@ -1157,6 +1160,121 @@
           "type": "integer",
           "minimum": 0
         }
+      },
+      "additionalProperties": false
+    },
+    "rpsBusOutput": {
+      "type": "object",
+      "required": ["voltage_v", "current_a", "power_w"],
+      "properties": {
+        "voltage_v": {"$ref": "#/$defs/nullableNumber"},
+        "current_a": {"$ref": "#/$defs/nullableNumber"},
+        "power_w": {"$ref": "#/$defs/nullableNumber"}
+      },
+      "additionalProperties": false
+    },
+    "rpsStaticRail": {
+      "type": "object",
+      "required": ["id", "nominal_voltage_v", "max_capacity_w", "evidence_id"],
+      "properties": {
+        "id": {"type": "string", "enum": ["rail-11v5", "rail-52v"]},
+        "nominal_voltage_v": {"type": "number", "minimum": 0},
+        "max_capacity_w": {"type": "number", "minimum": 0},
+        "evidence_id": {"type": "string", "maxLength": 128}
+      },
+      "additionalProperties": false
+    },
+    "rpsDCOutput": {
+      "type": "object",
+      "required": ["index", "kind", "label"],
+      "properties": {
+        "index": {"type": "integer", "minimum": 1, "maximum": 6},
+        "kind": {"const": "dc_power_output"},
+        "label": {"type": "string", "enum": ["DC 1", "DC 2", "DC 3", "DC 4", "DC 5", "DC 6"]}
+      },
+      "additionalProperties": false
+    },
+    "rpsCapabilities": {
+      "type": "object",
+      "required": ["schema_version", "canonical_sku", "display_name", "device_type", "management_interface", "dc_outputs", "dc_power_rails"],
+      "properties": {
+        "schema_version": {"const": 2},
+        "canonical_sku": {"const": "USP-RPS"},
+        "display_name": {"type": "string", "maxLength": 128},
+        "device_type": {"const": "rps"},
+        "management_interface": {
+          "type": "object",
+          "required": ["type", "count", "connector", "speed_mbps", "evidence_id"],
+          "properties": {
+            "type": {"const": "ethernet"}, "count": {"const": 1}, "connector": {"const": "rj45"},
+            "speed_mbps": {"const": 1000}, "evidence_id": {"type": "string", "maxLength": 128}
+          },
+          "additionalProperties": false
+        },
+        "dc_outputs": {
+          "type": "object",
+          "required": ["complete", "items"],
+          "properties": {"complete": {"const": true}, "items": {"type": "array", "minItems": 6, "maxItems": 6, "items": {"$ref": "#/$defs/rpsDCOutput"}}},
+          "additionalProperties": false
+        },
+        "dc_power_rails": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"$ref": "#/$defs/rpsStaticRail"}}
+      },
+      "additionalProperties": false
+    },
+    "rpsPort": {
+      "type": "object",
+      "required": ["index", "connection_state", "power_active", "power_delivering", "protected_device_id", "protected_device_model", "relationship_status", "observed_at", "output_12v", "output_54v", "measured_power_w", "power_quality"],
+      "properties": {
+        "index": {"type": "integer", "minimum": 1, "maximum": 6},
+        "connection_state": {"type": "string", "enum": ["disconnected", "connecting", "connected_standby", "delivering_power", "insufficient_power", "power_overload", "psu_power_overload", "disabled", "unknown"]},
+        "power_active": {"type": ["boolean", "null"]},
+        "power_delivering": {"type": ["boolean", "null"]},
+        "protected_device_id": {"type": ["string", "null"], "maxLength": 128},
+        "protected_device_model": {"type": ["string", "null"], "maxLength": 128},
+        "relationship_status": {"type": "string", "enum": ["matched", "ambiguous", "not_observed"]},
+        "observed_at": {"$ref": "#/$defs/nullableDateTime"},
+        "output_12v": {"$ref": "#/$defs/rpsBusOutput"},
+        "output_54v": {"$ref": "#/$defs/rpsBusOutput"},
+        "measured_power_w": {"$ref": "#/$defs/nullableNumber"},
+        "power_quality": {"type": "string", "enum": ["measured_output_sum", "unavailable"]}
+      },
+      "additionalProperties": false
+    },
+    "rpsRuntimeDevice": {
+      "type": "object",
+      "required": ["device_id", "model", "legacy_model", "model_id", "model_profile_status", "capabilities", "status", "firmware", "identity_status", "telemetry_observed", "observed_at", "stale", "ports", "total_output_power_w", "total_output_power_quality"],
+      "properties": {
+        "device_id": {"type": ["string", "null"], "maxLength": 128},
+        "model": {"type": ["string", "null"], "maxLength": 128},
+        "legacy_model": {"type": ["string", "null"], "maxLength": 128},
+        "model_id": {"type": ["string", "null"], "maxLength": 128},
+        "model_profile_status": {"type": "string", "enum": ["known", "unknown"]},
+        "capabilities": {"anyOf": [{"$ref": "#/$defs/rpsCapabilities"}, {"type": "null"}]},
+        "status": {"type": "string", "enum": ["online", "offline", "unknown"]},
+        "firmware": {"type": ["string", "null"], "maxLength": 128},
+        "identity_status": {"type": "string", "enum": ["matched", "ambiguous", "unmatched"]},
+        "telemetry_observed": {"type": "boolean"},
+        "observed_at": {"$ref": "#/$defs/nullableDateTime"},
+        "stale": {"type": "boolean"},
+        "ports": {"type": "array", "maxItems": 6, "items": {"$ref": "#/$defs/rpsPort"}},
+        "total_output_power_w": {"$ref": "#/$defs/nullableNumber"},
+        "total_output_power_quality": {"type": "string", "enum": ["same_sample_port_sum", "unavailable"]}
+      },
+      "additionalProperties": false
+    },
+    "rps": {
+      "type": "object",
+      "required": ["schema_version", "source", "supported", "collection_status", "observed", "collected_at", "stale", "error", "devices"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "source": {"const": "legacy_stat_device"},
+        "supported": {"type": "boolean", "const": true, "description": "Collector capability, not hardware presence"},
+        "collection_status": {"type": "string", "enum": ["available", "partial", "unavailable", "not_observed"]},
+        "observed": {"type": "boolean"},
+        "collected_at": {"$ref": "#/$defs/nullableDateTime"},
+        "stale": {"type": "boolean"},
+        "error": {"$ref": "agent-update-extension.schema.json#/$defs/error"},
+        "devices": {"type": "array", "maxItems": 8, "items": {"$ref": "#/$defs/rpsRuntimeDevice"}}
       },
       "additionalProperties": false
     },

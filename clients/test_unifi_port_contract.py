@@ -75,9 +75,9 @@ class UniFiPortContractTests(unittest.TestCase):
 
 
 class UniFiModelCatalogTests(unittest.TestCase):
-    def test_qualified_bundle_has_20_models_and_no_fuzzy_resolution(self):
+    def test_qualified_bundle_has_21_models_and_no_fuzzy_resolution(self):
         catalog = load_catalog()
-        self.assertEqual(len(catalog), 20)
+        self.assertEqual(len(catalog), 21)
         for sku in ("UDW", "UCG-Max", "USW-Pro-HD-24", "USW-Pro-HD-24-PoE",
                     "USW-Pro-Max-16", "USW-Pro-Max-16-PoE",
                     "USW-Pro-Max-24", "USW-Pro-Max-24-PoE",
@@ -90,6 +90,8 @@ class UniFiModelCatalogTests(unittest.TestCase):
             ("api_model", "UCG Max", "UCG-Max"),
             ("ssh_model", "Qualcomm Technologies, Inc. IPQ5332/AP-MI03.1", "UCG-Max"),
             ("api_model", "USW Flex Mini", "USW-Flex-Mini"),
+            ("api_model", "USP RPS", "USP-RPS"),
+            ("legacy_model", "USPRPS", "USP-RPS"),
         )
         for kind, value, expected_sku in aliases:
             with self.subTest(kind=kind, value=value):
@@ -98,11 +100,12 @@ class UniFiModelCatalogTests(unittest.TestCase):
         self.assertIsNone(resolve_model(catalog, "Cloud Gateway Max"))
         self.assertIsNone(resolve_model(catalog, "UCG-Max"))
         self.assertIsNone(resolve_model(catalog, "UCG-Max", kind="not-an-identifier"))
+        self.assertIsNone(resolve_model(catalog, "USP-RPS", kind="api_model"))
         self.assertEqual(resolve_model(catalog, "UCG-Max", explicit_sku=True)["canonical_sku"], "UCG-Max")
 
     def test_catalog_revision_and_checksum_are_pinned(self):
-        self.assertEqual(CATALOG_SOURCE_REVISION, "008d34c0de597fa6fce9c28a0a9a2c2fc0ce6759")
-        self.assertEqual(CATALOG_BUNDLE_SHA256, "64bd0a6d3dc10b97119b5147535f0be07376c32d0aca31bd840f87ec6830eefd")
+        self.assertEqual(CATALOG_SOURCE_REVISION, "6a434bb795ed8a5e1bb329e7d470a86c49be22ee")
+        self.assertEqual(CATALOG_BUNDLE_SHA256, "ba59930b18e88df78bef35cc51ee2ba897169fb8cdcae20465aa69878c6664fa")
         manifest = CATALOG_BUNDLE_PATH.with_name("catalog.sha256").read_text(encoding="ascii").strip()
         self.assertEqual(manifest, CATALOG_BUNDLE_SHA256 + "  catalog.json")
 
@@ -249,7 +252,7 @@ class UniFiModelCatalogTests(unittest.TestCase):
             shutil.copyfile(ROOT / "unifi_catalog" / "catalog.json", source / "catalog.json")
             shutil.copyfile(ROOT / "unifi_catalog" / "catalog.sha256", source / "catalog.sha256")
             bundle = json.loads((source / "catalog.json").read_text(encoding="utf-8"))
-            bundle["schema_version"] = 2
+            bundle["schema_version"] = 3
             raw = json.dumps(bundle, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
             (source / "catalog.json").write_bytes(raw)
             (source / "catalog.sha256").write_text(hashlib.sha256(raw).hexdigest() + "  catalog.json\n", encoding="ascii")

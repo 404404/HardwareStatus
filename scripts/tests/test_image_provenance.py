@@ -90,6 +90,8 @@ class ImageProvenanceTests(unittest.TestCase):
         self.assertIn("VERSION=${{ steps.provenance.outputs.product_version }}", workflow)
         self.assertIn("hardwarestatus-server:${{ steps.provenance.outputs.candidate_tag }}", workflow)
         self.assertIn("hardwarestatus-client:${{ steps.provenance.outputs.candidate_tag }}", workflow)
+        self.assertIn("CATALOG_SCHEMA_VERSION=${{ needs.catalog.outputs.schema_version }}", workflow)
+        self.assertIn("--require-server-catalog-provenance", workflow)
 
     def test_server_dockerfile_copies_multi_device_contract_package(self):
         dockerfile = (
@@ -124,6 +126,37 @@ class ImageProvenanceTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn('io.hardwarestatus.component="server"', dockerfile)
         self.assertIn('io.hermesstatus.component="server"', dockerfile)
+        self.assertIn('io.hardwarestatus.unifi.catalog.sha256="${CATALOG_SHA256}"', dockerfile)
+        self.assertIn('io.hermesstatus.unifi.catalog.sha256="${CATALOG_SHA256}"', dockerfile)
+
+    def test_server_and_client_catalog_label_validation_accepts_v2(self):
+        config = copy.deepcopy(valid_inspect()["Config"])
+        labels = config["Labels"]
+        revision = "b" * 40
+        digest = "c" * 64
+        for namespace in ("io.hardwarestatus", "io.hermesstatus"):
+            labels[namespace + ".unifi.catalog.revision"] = revision
+            labels[namespace + ".unifi.catalog.schema_version"] = "2"
+            labels[namespace + ".unifi.catalog.sha256"] = digest
+        MODULE.validate_catalog_labels(config, revision=revision, schema_version=2, sha256=digest)
+        with self.assertRaises(MODULE.ValidationError):
+            MODULE.validate_catalog_labels(config, revision=revision, schema_version=3, sha256=digest)
+
+    def test_client_catalog_runtime_provenance_accepts_v2(self):
+        config = copy.deepcopy(valid_inspect()["Config"])
+        revision = "b" * 40
+        digest = "c" * 64
+        for namespace in ("io.hardwarestatus", "io.hermesstatus"):
+            config["Labels"][namespace + ".unifi.catalog.revision"] = revision
+            config["Labels"][namespace + ".unifi.catalog.schema_version"] = "2"
+            config["Labels"][namespace + ".unifi.catalog.sha256"] = digest
+        for prefix in ("HARDWARESTATUS", "HERMESSTATUS"):
+            config["Env"].extend([
+                prefix + "_UNIFI_CATALOG_REVISION=" + revision,
+                prefix + "_UNIFI_CATALOG_SCHEMA_VERSION=2",
+                prefix + "_UNIFI_CATALOG_SHA256=" + digest,
+            ])
+        MODULE.validate_catalog_provenance(config, revision=revision, schema_version=2, sha256=digest)
 
     def test_valid_metadata(self):
         result = validate(valid_inspect())

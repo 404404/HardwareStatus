@@ -214,6 +214,44 @@ func TestCollectionDiagnosticsPreserveDecoderFieldAndReason(t *testing.T) {
 	}
 }
 
+func TestCollectionDiagnosticsScopeRPSAvailabilityWithoutDegradingUniFi(t *testing.T) {
+	for _, test := range []struct {
+		collectionStatus string
+		stale            bool
+		want             string
+	}{
+		{"available", false, "available"},
+		{"available", true, "stale"},
+		{"partial", false, "partial"},
+		{"unavailable", false, "unavailable"},
+		{"not_observed", false, "not_observed"},
+	} {
+		stats := validUniFiFixture("udw")
+		rps := validUniFiRPSFixture()
+		rps.CollectionStatus = test.collectionStatus
+		rps.Stale = test.stale
+		if test.collectionStatus == "not_observed" {
+			rps.Observed = false
+			rps.Devices = []UniFiRPSDevice{}
+		}
+		stats.RPS = rps
+		diagnostics := buildCollectionDiagnostics(ExtensionStats{UniFi: &stats}, nil)
+		var component *CollectionDiagnostic
+		for index := range diagnostics {
+			if diagnostics[index].Component == "rps" {
+				component = &diagnostics[index]
+				break
+			}
+		}
+		if component == nil || component.Status != test.want {
+			t.Fatalf("RPS component status %q became %#v; want %q", test.collectionStatus, component, test.want)
+		}
+		if extensionHasBusinessError(ExtensionStats{UniFi: &stats}) {
+			t.Fatalf("RPS component status %q degraded ordinary UniFi health", test.collectionStatus)
+		}
+	}
+}
+
 func TestCollectionDiagnosticsDescribeDisabledCollectors(t *testing.T) {
 	diagnostics := make([]CollectionDiagnostic, 0, 3)
 	seen := make(map[string]struct{})

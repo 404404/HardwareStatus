@@ -50,7 +50,7 @@ def load_lock(path: Path) -> dict[str, Any]:
         raise CatalogAcquisitionError("Catalog repository is not the approved source")
     if not isinstance(revision, str) or len(revision) != 40 or any(char not in HEX for char in revision):
         raise CatalogAcquisitionError("Catalog revision must be a full lowercase Git SHA")
-    if isinstance(schema_version, bool) or not isinstance(schema_version, int) or schema_version != 1:
+    if isinstance(schema_version, bool) or not isinstance(schema_version, int) or schema_version not in {1, 2}:
         raise CatalogAcquisitionError("unsupported Catalog schema version")
     if not isinstance(digest, str) or len(digest) != 64 or any(char not in HEX for char in digest):
         raise CatalogAcquisitionError("Catalog SHA-256 must be a lowercase hexadecimal digest")

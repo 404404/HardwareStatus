@@ -1,4 +1,4 @@
-"""Consumer for the frozen UniFi_Catalog V1 generated bundle."""
+"""Consumer for the frozen versioned UniFi_Catalog bundle."""
 from __future__ import annotations
 
 import copy
@@ -7,10 +7,10 @@ import json
 import re
 from pathlib import Path
 
-CATALOG_SCHEMA_VERSION = 1
-SUPPORTED_CATALOG_SCHEMA_VERSIONS = frozenset({CATALOG_SCHEMA_VERSION})
-CATALOG_SOURCE_REVISION = "008d34c0de597fa6fce9c28a0a9a2c2fc0ce6759"
-CATALOG_BUNDLE_SHA256 = "64bd0a6d3dc10b97119b5147535f0be07376c32d0aca31bd840f87ec6830eefd"
+CATALOG_SCHEMA_VERSION = 2
+SUPPORTED_CATALOG_SCHEMA_VERSIONS = frozenset({1, CATALOG_SCHEMA_VERSION})
+CATALOG_SOURCE_REVISION = "6a434bb795ed8a5e1bb329e7d470a86c49be22ee"
+CATALOG_BUNDLE_SHA256 = "ba59930b18e88df78bef35cc51ee2ba897169fb8cdcae20465aa69878c6664fa"
 CATALOG_BUNDLE_PATH = Path(__file__).with_name("unifi_catalog") / "catalog.json"
 CATALOG_PROVENANCE_PATH = CATALOG_BUNDLE_PATH.with_name("catalog-provenance.json")
 # Compatibility name only; this is a bundle path, not a model-table directory.
@@ -209,8 +209,8 @@ def _power(model):
 def _model(model):
     required = {"schema_version", "canonical_sku", "display_name", "device_type", "official_evidence_ids", "runtime_identifiers", "ports", "storage", "power", "fans"}
     _exact(model, required, "model", {"processor"})
-    if model["schema_version"] != CATALOG_SCHEMA_VERSION:
-        raise ModelCatalogError("unsupported model schema_version")
+    if model["schema_version"] != 1:
+        raise ModelCatalogError("unsupported v1 model schema_version")
     sku = _text(model["canonical_sku"], "canonical_sku")
     if re.fullmatch(r"[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*", sku) is None:
         raise ModelCatalogError("invalid canonical_sku")
@@ -244,6 +244,70 @@ def _model(model):
         raise ModelCatalogError("invalid absent fan count")
 
 
+def _rps_model(model):
+    required = {"schema_version", "canonical_sku", "display_name", "device_type", "official_evidence_ids", "runtime_identifiers", "management_interface", "dc_outputs", "dc_power_rails"}
+    _exact(model, required, "RPS model v2")
+    if model["schema_version"] != 2 or model["device_type"] != "rps":
+        raise ModelCatalogError("invalid RPS model schema version/type")
+    _text(model["canonical_sku"], "canonical_sku")
+    _text(model["display_name"], "display_name")
+    evidence_ids = model["official_evidence_ids"]
+    if not isinstance(evidence_ids, list) or not evidence_ids or len(evidence_ids) != len(set(evidence_ids)):
+        raise ModelCatalogError("invalid RPS official evidence IDs")
+    if any(not isinstance(item, str) or not re.fullmatch(r"official-[a-z0-9-]+", item) for item in evidence_ids):
+        raise ModelCatalogError("invalid RPS official evidence IDs")
+    identifiers = model["runtime_identifiers"]
+    kinds = {"api_model", "legacy_model", "sysid", "ssh_model"}
+    _exact(identifiers, kinds, "RPS runtime_identifiers")
+    for kind, aliases in identifiers.items():
+        if not isinstance(aliases, list):
+            raise ModelCatalogError(f"invalid RPS runtime_identifiers.{kind}")
+        seen_values = set()
+        for alias in aliases:
+            _exact(alias, {"value", "status", "provenance", "evidence_id"}, f"RPS runtime alias {kind}")
+            _text(alias["value"], f"RPS runtime alias {kind}.value")
+            _text(alias["provenance"], f"RPS runtime alias {kind}.provenance")
+            if alias["status"] not in ALIAS_STATUSES or alias["value"] in seen_values:
+                raise ModelCatalogError(f"invalid or duplicate RPS runtime alias {kind}")
+            seen_values.add(alias["value"])
+            if not isinstance(alias["evidence_id"], str) or not re.fullmatch(r"runtime-[a-z0-9-]+", alias["evidence_id"]):
+                raise ModelCatalogError(f"invalid RPS runtime alias evidence {kind}")
+    interface = model["management_interface"]
+    _exact(interface, {"type", "count", "connector", "speed_mbps", "evidence_id"}, "RPS management_interface")
+    try:
+        _number(interface.get("count"), "RPS management_interface.count", integer=True, minimum=1)
+        _number(interface.get("speed_mbps"), "RPS management_interface.speed_mbps", integer=True, minimum=1)
+    except ModelCatalogError as exc:
+        raise ModelCatalogError("invalid RPS Ethernet management interface") from exc
+    if interface.get("type") != "ethernet" or interface.get("count") != 1 or interface.get("connector") != "rj45" or interface.get("speed_mbps") != 1000:
+        raise ModelCatalogError("invalid RPS Ethernet management interface")
+    if interface["evidence_id"] not in evidence_ids:
+        raise ModelCatalogError("RPS management interface lacks official evidence")
+    outputs = model["dc_outputs"]
+    _exact(outputs, {"complete", "items"}, "RPS dc_outputs")
+    if outputs["complete"] is not True or not isinstance(outputs["items"], list) or len(outputs["items"]) != 6:
+        raise ModelCatalogError("RPS requires six complete DC outputs")
+    rails = model["dc_power_rails"]
+    expected = {"rail-11v5": (11.5, 350), "rail-52v": (52, 600)}
+    if not isinstance(rails, list) or len(rails) != 2:
+        raise ModelCatalogError("RPS requires two distinct static DC rails")
+    rail_ids = set()
+    for rail in rails:
+        _exact(rail, {"id", "nominal_voltage_v", "max_capacity_w", "evidence_id"}, "RPS dc_power_rail")
+        if rail["id"] not in expected or (rail["nominal_voltage_v"], rail["max_capacity_w"]) != expected[rail["id"]]:
+            raise ModelCatalogError("invalid RPS static DC rail rating")
+        if rail["evidence_id"] not in evidence_ids:
+            raise ModelCatalogError("RPS static DC rail lacks official evidence")
+        rail_ids.add(rail["id"])
+    if rail_ids != set(expected):
+        raise ModelCatalogError("RPS requires both distinct static DC rails")
+    for index, output in enumerate(outputs["items"], 1):
+        _exact(output, {"index", "kind", "label"}, f"RPS dc_outputs[{index - 1}]")
+        _number(output["index"], f"RPS dc_outputs[{index - 1}].index", integer=True, minimum=1)
+        if output["index"] != index or output["kind"] != "dc_power_output" or output["label"] != f"DC {index}":
+            raise ModelCatalogError("invalid RPS DC output topology")
+
+
 def _bundle(bundle):
     _exact(bundle, {"schema_version", "models"}, "catalog bundle")
     version = bundle["schema_version"]
@@ -255,7 +319,12 @@ def _bundle(bundle):
     aliases = {}
     canonical_skus = set()
     for item in bundle["models"]:
-        _model(item)
+        if item.get("schema_version") == 2:
+            if version != 2:
+                raise ModelCatalogError("Catalog V1 cannot contain model schema v2")
+            _rps_model(item)
+        else:
+            _model(item)
         sku = item["canonical_sku"]
         if sku in canonical_skus:
             raise ModelCatalogError("duplicate canonical model ownership")
@@ -299,7 +368,7 @@ def _validate_default_provenance() -> None:
 
 
 def load_catalog(path=CATALOG_BUNDLE_PATH):
-    """Load a checksum-verified, schema-compatible Catalog V1 bundle."""
+    """Load a checksum-verified mixed Catalog V1/V2 bundle."""
     bundle_path, digest_path = _paths(path)
     try:
         raw = bundle_path.read_bytes()
@@ -332,10 +401,10 @@ def resolve_model(catalog, value, *, kind="api_model", explicit_sku=False):
         model = catalog.get(value)
         if model is not None:
             return model
-    if kind not in IDENTIFIER_KINDS:
+    if kind not in IDENTIFIER_KINDS | {"legacy_model"}:
         return None
     for model in catalog.values():
-        for alias in model["runtime_identifiers"][kind]:
+        for alias in model["runtime_identifiers"].get(kind, []):
             if alias["status"] == "verified" and alias["value"] == value:
                 return model
     return None
@@ -345,6 +414,9 @@ def project_static_capabilities(model):
     """Return detached static capabilities without aliases or runtime state."""
     if not isinstance(model, dict):
         return None
+    if model.get("schema_version") == 2 and model.get("device_type") == "rps":
+        fields = ("schema_version", "canonical_sku", "display_name", "device_type", "management_interface", "dc_outputs", "dc_power_rails")
+        return {field: copy.deepcopy(model[field]) for field in fields}
     fields = ("schema_version", "canonical_sku", "display_name", "device_type", "ports", "storage", "power", "fans")
     result = {field: copy.deepcopy(model[field]) for field in fields}
     if "processor" in model:

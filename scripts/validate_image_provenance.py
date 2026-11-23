@@ -95,19 +95,7 @@ def validate_client_runtime(config: dict, *, version: str, revision: str, create
             raise ValidationError("legacy client runtime alias conflicts with canonical metadata")
 
 def validate_catalog_provenance(config: dict, *, revision: str, schema_version: int, sha256: str) -> None:
-    labels = config.get("Labels") or {}
-    expected_labels = {
-        "io.hardwarestatus.unifi.catalog.revision": revision,
-        "io.hardwarestatus.unifi.catalog.schema_version": str(schema_version),
-        "io.hardwarestatus.unifi.catalog.sha256": sha256,
-    }
-    for key, value in expected_labels.items():
-        if labels.get(key) != value:
-            raise ValidationError("client Catalog label %s does not match the build input" % key)
-    for suffix, expected in (("revision", revision), ("schema_version", str(schema_version)), ("sha256", sha256)):
-        legacy_key = "io.hermesstatus.unifi.catalog." + suffix
-        if legacy_key in labels and labels[legacy_key] != expected:
-            raise ValidationError("legacy Catalog label conflicts with canonical metadata")
+    validate_catalog_labels(config, revision=revision, schema_version=schema_version, sha256=sha256)
     values = environment_values(config)
     expected_environment = {
         "HARDWARESTATUS_UNIFI_CATALOG_REVISION": revision,
@@ -124,9 +112,25 @@ def validate_catalog_provenance(config: dict, *, revision: str, schema_version: 
     ):
         if legacy in values and values[legacy] != values[canonical]:
             raise ValidationError("legacy Catalog runtime alias conflicts with canonical metadata")
+
+
+def validate_catalog_labels(config: dict, *, revision: str, schema_version: int, sha256: str) -> None:
+    labels = config.get("Labels") or {}
+    expected_labels = {
+        "io.hardwarestatus.unifi.catalog.revision": revision,
+        "io.hardwarestatus.unifi.catalog.schema_version": str(schema_version),
+        "io.hardwarestatus.unifi.catalog.sha256": sha256,
+    }
+    for key, value in expected_labels.items():
+        if labels.get(key) != value:
+            raise ValidationError("client Catalog label %s does not match the build input" % key)
+    for suffix, expected in (("revision", revision), ("schema_version", str(schema_version)), ("sha256", sha256)):
+        legacy_key = "io.hermesstatus.unifi.catalog." + suffix
+        if legacy_key in labels and labels[legacy_key] != expected:
+            raise ValidationError("legacy Catalog label conflicts with canonical metadata")
     if not SHA_PATTERN.fullmatch(revision) or not CATALOG_SHA_PATTERN.fullmatch(sha256):
         raise ValidationError("client Catalog provenance has an invalid digest")
-    if schema_version != 1:
+    if isinstance(schema_version, bool) or not isinstance(schema_version, int) or schema_version not in {1, 2}:
         raise ValidationError("unsupported client Catalog schema version")
 
 
@@ -244,6 +248,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--catalog-revision")
     parser.add_argument("--catalog-schema-version", type=int)
     parser.add_argument("--catalog-sha256")
+    parser.add_argument("--require-server-catalog-provenance", action="store_true")
     return parser.parse_args()
 
 
@@ -293,6 +298,15 @@ def main() -> int:
                 schema_version=args.catalog_schema_version,
                 sha256=args.catalog_sha256,
             )
+            if args.require_server_catalog_provenance:
+                validate_catalog_labels(
+                    server_inspect.get("Config") or {},
+                    revision=args.catalog_revision,
+                    schema_version=args.catalog_schema_version,
+                    sha256=args.catalog_sha256,
+                )
+        elif args.require_server_catalog_provenance:
+            raise ValidationError("server Catalog provenance requires the complete Catalog input tuple")
         validate_server_runtime(
             args.server_image,
             version=args.version,

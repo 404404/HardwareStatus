@@ -85,8 +85,9 @@ class CatalogAcquisitionTests(unittest.TestCase):
         provenance = json.loads(
             (ROOT / "clients/unifi_catalog/catalog-provenance.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(lock["revision"], "008d34c0de597fa6fce9c28a0a9a2c2fc0ce6759")
-        self.assertEqual(lock["catalog_sha256"], "64bd0a6d3dc10b97119b5147535f0be07376c32d0aca31bd840f87ec6830eefd")
+        self.assertEqual(lock["revision"], "6a434bb795ed8a5e1bb329e7d470a86c49be22ee")
+        self.assertEqual(lock["catalog_sha256"], "ba59930b18e88df78bef35cc51ee2ba897169fb8cdcae20465aa69878c6664fa")
+        self.assertEqual(lock["schema_version"], 2)
         self.assertEqual(provenance, {
             "catalog_sha256": lock["catalog_sha256"],
             "catalog_schema_version": lock["schema_version"],
@@ -101,13 +102,13 @@ class CatalogAcquisitionTests(unittest.TestCase):
             output = pathlib.Path(directory)
             (output / "catalog.json").write_bytes(bundle)
             (output / "catalog.sha256").write_text(
-                "64bd0a6d3dc10b97119b5147535f0be07376c32d0aca31bd840f87ec6830eefd  catalog.json\n",
+                "ba59930b18e88df78bef35cc51ee2ba897169fb8cdcae20465aa69878c6664fa  catalog.json\n",
                 encoding="ascii",
             )
             (output / "manifest.json").write_text(
                 json.dumps({
-                    "bundle_sha256": "64bd0a6d3dc10b97119b5147535f0be07376c32d0aca31bd840f87ec6830eefd",
-                    "catalog_schema_version": 1,
+                    "bundle_sha256": "ba59930b18e88df78bef35cc51ee2ba897169fb8cdcae20465aa69878c6664fa",
+                    "catalog_schema_version": 2,
                     "model_count": len(json.loads(bundle)["models"]),
                 }, sort_keys=True),
                 encoding="utf-8",
@@ -168,6 +169,33 @@ class CandidatePublicationTests(unittest.TestCase):
                 **self.params(),
             ),
             "PUBLISH",
+        )
+
+    def test_schema_v2_catalog_is_accepted_for_a_new_candidate(self):
+        params = self.params()
+        params["catalog_schema_version"] = 2
+        self.assertEqual(
+            PUBLICATION.classify_publication(
+                server_present=False,
+                client_present=False,
+                server_labels=None,
+                client_labels=None,
+                client_env=None,
+                **params,
+            ),
+            "PUBLISH",
+        )
+        params["catalog_schema_version"] = 3
+        self.assertEqual(
+            PUBLICATION.classify_publication(
+                server_present=False,
+                client_present=False,
+                server_labels=None,
+                client_labels=None,
+                client_env=None,
+                **params,
+            ),
+            "FAIL_IMMUTABILITY_VIOLATION",
         )
 
     def test_one_present_fails_partial_publication(self):

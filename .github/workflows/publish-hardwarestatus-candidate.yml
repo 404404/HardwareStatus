@@ -21,7 +21,49 @@ permissions:
   contents: read
 
 jobs:
+  catalog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      revision: ${{ steps.lock.outputs.revision }}
+      schema_version: ${{ steps.lock.outputs.schema_version }}
+      sha256: ${{ steps.lock.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Read Catalog lock
+        id: lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -c 'import json; p=json.load(open("unifi-catalog.lock.json", encoding="utf-8")); print("revision=" + p["revision"]); print("schema_version=" + str(p["schema_version"])); print("sha256=" + p["catalog_sha256"])' >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v5
+        with:
+          repository: 404404/UniFi_Catalog
+          ref: ${{ steps.lock.outputs.revision }}
+          path: external/UniFi_Catalog
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Install Catalog validation dependency
+        run: python3 -m pip install --disable-pip-version-check --no-input -r external/UniFi_Catalog/requirements-dev.txt
+      - name: Validate and stage locked Catalog
+        run: |
+          python3 scripts/acquire_unifi_catalog.py \
+            --source-dir external/UniFi_Catalog \
+            --output-dir clients/unifi_catalog
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hardwarestatus-candidate-catalog-${{ inputs.source_sha }}
+          path: clients/unifi_catalog
+          if-no-files-found: error
+
   validate:
+    needs: catalog
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -29,6 +71,10 @@ jobs:
         with:
           ref: ${{ inputs.source_sha }}
           fetch-depth: 1
+      - uses: actions/download-artifact@v4
+        with:
+          name: hardwarestatus-candidate-catalog-${{ inputs.source_sha }}
+          path: clients/unifi_catalog
       - name: Verify immutable source input
         env:
           EXPECTED_SHA: ${{ inputs.source_sha }}
@@ -70,7 +116,7 @@ jobs:
       - run: SERVER=192.0.2.10 SERVERSTATUS_USER=ci-node PASSWORD=ci-placeholder docker compose -f docker-compose-client.yml config --quiet
 
   publish:
-    needs: validate
+    needs: [validate, catalog]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -81,6 +127,10 @@ jobs:
         with:
           ref: ${{ inputs.source_sha }}
           fetch-depth: 1
+      - uses: actions/download-artifact@v4
+        with:
+          name: hardwarestatus-candidate-catalog-${{ inputs.source_sha }}
+          path: clients/unifi_catalog
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -110,8 +160,9 @@ jobs:
           echo "candidate_tag=${candidate_tag}" >> "$GITHUB_OUTPUT"
           echo "owner=${owner}" >> "$GITHUB_OUTPUT"
           echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
-          echo "catalog_revision=$(python3 -c 'import json; print(json.load(open("unifi-catalog.lock.json"))["revision"])')" >> "$GITHUB_OUTPUT"
-          echo "catalog_sha256=$(python3 -c 'import json; print(json.load(open("unifi-catalog.lock.json"))["catalog_sha256"])')" >> "$GITHUB_OUTPUT"
+          echo "catalog_revision=${{ needs.catalog.outputs.revision }}" >> "$GITHUB_OUTPUT"
+          echo "catalog_schema_version=${{ needs.catalog.outputs.schema_version }}" >> "$GITHUB_OUTPUT"
+          echo "catalog_sha256=${{ needs.catalog.outputs.sha256 }}" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         id: server_image
         with:
@@ -129,11 +180,20 @@ jobs:
             org.opencontainers.image.licenses=MIT
             io.hardwarestatus.component=server
             io.hermesstatus.component=server
+            io.hardwarestatus.unifi.catalog.revision=${{ needs.catalog.outputs.revision }}
+            io.hardwarestatus.unifi.catalog.schema_version=${{ needs.catalog.outputs.schema_version }}
+            io.hardwarestatus.unifi.catalog.sha256=${{ needs.catalog.outputs.sha256 }}
+            io.hermesstatus.unifi.catalog.revision=${{ needs.catalog.outputs.revision }}
+            io.hermesstatus.unifi.catalog.schema_version=${{ needs.catalog.outputs.schema_version }}
+            io.hermesstatus.unifi.catalog.sha256=${{ needs.catalog.outputs.sha256 }}
           build-args: |
             VERSION=${{ inputs.version }}
             VCS_REF=${{ inputs.source_sha }}
             BUILD_DATE=${{ steps.candidate.outputs.created }}
             SOURCE_URL=https://github.com/404404/HardwareStatus
+            CATALOG_REVISION=${{ needs.catalog.outputs.revision }}
+            CATALOG_SCHEMA_VERSION=${{ needs.catalog.outputs.schema_version }}
+            CATALOG_SHA256=${{ needs.catalog.outputs.sha256 }}
       - uses: docker/build-push-action@v6
         id: client_image
         with:
@@ -152,10 +212,10 @@ jobs:
             io.hardwarestatus.component=client
             io.hermesstatus.component=client
             io.hardwarestatus.unifi.catalog.revision=${{ steps.candidate.outputs.catalog_revision }}
-            io.hardwarestatus.unifi.catalog.schema_version=1
+            io.hardwarestatus.unifi.catalog.schema_version=${{ needs.catalog.outputs.schema_version }}
             io.hardwarestatus.unifi.catalog.sha256=${{ steps.candidate.outputs.catalog_sha256 }}
             io.hermesstatus.unifi.catalog.revision=${{ steps.candidate.outputs.catalog_revision }}
-            io.hermesstatus.unifi.catalog.schema_version=1
+            io.hermesstatus.unifi.catalog.schema_version=${{ needs.catalog.outputs.schema_version }}
             io.hermesstatus.unifi.catalog.sha256=${{ steps.candidate.outputs.catalog_sha256 }}
           build-args: |
             VERSION=${{ inputs.version }}
@@ -163,7 +223,7 @@ jobs:
             BUILD_DATE=${{ steps.candidate.outputs.created }}
             SOURCE_URL=https://github.com/404404/HardwareStatus
             CATALOG_REVISION=${{ steps.candidate.outputs.catalog_revision }}
-            CATALOG_SCHEMA_VERSION=1
+            CATALOG_SCHEMA_VERSION=${{ needs.catalog.outputs.schema_version }}
             CATALOG_SHA256=${{ steps.candidate.outputs.catalog_sha256 }}
       - name: Verify published immutable manifests
         env:
@@ -192,7 +252,8 @@ jobs:
             --created "$CREATED" \
             --source https://github.com/404404/HardwareStatus \
             --catalog-revision "$CATALOG_REVISION" \
-            --catalog-schema-version 1 \
-            --catalog-sha256 "$CATALOG_SHA256"
+            --catalog-schema-version "${{ needs.catalog.outputs.schema_version }}" \
+            --catalog-sha256 "$CATALOG_SHA256" \
+            --require-server-catalog-provenance
           echo "SERVER_DIGEST=${SERVER_DIGEST}"
           echo "CLIENT_DIGEST=${CLIENT_DIGEST}"

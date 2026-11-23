@@ -24,6 +24,9 @@ ARG VERSION=2.8
 ARG VCS_REF=unknown
 ARG BUILD_DATE=unknown
 ARG SOURCE_URL=https://github.com/404404/HardwareStatus
+ARG CATALOG_REVISION=6a434bb795ed8a5e1bb329e7d470a86c49be22ee
+ARG CATALOG_SCHEMA_VERSION=2
+ARG CATALOG_SHA256=ba59930b18e88df78bef35cc51ee2ba897169fb8cdcae20465aa69878c6664fa
 
 LABEL maintainer="cppla <https://cpp.la>" \
     org.opencontainers.image.title="HardwareStatus Server" \
@@ -34,7 +37,13 @@ LABEL maintainer="cppla <https://cpp.la>" \
     org.opencontainers.image.source="${SOURCE_URL}" \
     org.opencontainers.image.licenses="MIT" \
     io.hardwarestatus.component="server" \
-    io.hermesstatus.component="server"
+    io.hardwarestatus.unifi.catalog.revision="${CATALOG_REVISION}" \
+    io.hardwarestatus.unifi.catalog.schema_version="${CATALOG_SCHEMA_VERSION}" \
+    io.hardwarestatus.unifi.catalog.sha256="${CATALOG_SHA256}" \
+    io.hermesstatus.component="server" \
+    io.hermesstatus.unifi.catalog.revision="${CATALOG_REVISION}" \
+    io.hermesstatus.unifi.catalog.schema_version="${CATALOG_SCHEMA_VERSION}" \
+    io.hermesstatus.unifi.catalog.sha256="${CATALOG_SHA256}"
 
 RUN apk add --no-cache ca-certificates tzdata \
     && mkdir -p /app/config /app/data /app/web

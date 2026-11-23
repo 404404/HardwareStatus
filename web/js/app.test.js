@@ -324,6 +324,36 @@ async function run(){
     ]
   }}});
   const wanMarkup = app.unifiWanMarkup({...udwUniFi, api: {...apiFixture, telemetry: {...apiFixture.telemetry, wans: [{id: 'wan1', name: 'WAN', online: true, role: 'active', isp: 'Example ISP', asn: '64500', link_speed_mbps: 2500, latency_ms: 12.3, speedtest: {observed: true, timestamp: '2026-01-01T00:00:00Z', latency_ms: 2.5, download_mbps: 900, upload_mbps: 100}}]}}});
+  const rpsFixture = {
+    supported: true, observed: true, collection_status: 'available', stale: false,
+    devices: [{model: 'USP RPS', model_id: 'USP-RPS', status: 'online', stale: false,
+      capabilities: {dc_outputs: {items: Array.from({length: 6}, (_, index) => ({index: index + 1, kind: 'dc_power_output'}))},
+        dc_power_rails: [{id: 'rail-11v5', nominal_voltage_v: 11.5, max_capacity_w: 350}, {id: 'rail-52v', nominal_voltage_v: 52, max_capacity_w: 600}]},
+      total_output_power_w: 101, total_output_power_quality: 'same_sample_port_sum',
+      ports: [
+        ...[1, 2, 3, 4].map(index => ({index, connection_state: index === 4 ? 'connected_standby' : 'disconnected', power_active: false, power_delivering: false, relationship_status: 'not_observed', measured_power_w: 0, power_quality: 'measured_output_sum', output_12v: {power_w: 0}, output_54v: {power_w: 0}})),
+        {index: 5, connection_state: 'delivering_power', power_active: true, power_delivering: true, relationship_status: 'matched', protected_device_id: 'protected-1', protected_device_model: 'USW Pro HD 24', measured_power_w: 21, power_quality: 'measured_output_sum', output_12v: {power_w: 21}, output_54v: {power_w: 0}},
+        {index: 6, connection_state: 'delivering_power', power_active: true, power_delivering: true, relationship_status: 'matched', protected_device_id: 'protected-2', protected_device_model: '<img src=x onerror=alert(1)>', measured_power_w: 80, power_quality: 'measured_output_sum', output_12v: {power_w: 13}, output_54v: {power_w: 67}}
+      ]
+    }]
+  };
+  const rpsUniFi = {...udwUniFi, rps: rpsFixture};
+  const rpsMarkup = app.unifiRPSMarkup(rpsUniFi);
+  assert.equal(app.unifiRPSSectionVisible(rpsUniFi), true);
+  assert.match(rpsMarkup, /已连接（待命）/);
+  assert.match(rpsMarkup, /正在供电/);
+  assert.match(rpsMarkup, /101 W/);
+  assert.ok(rpsMarkup.includes("11.5 V / 350 W"));
+  assert.ok(rpsMarkup.includes("52 V / 600 W"));
+  assert.match(rpsMarkup, /12 V 通道 21 W/);
+  assert.match(rpsMarkup, /54 V 通道 67 W/);
+  assert.doesNotMatch(rpsMarkup, /11\.5V 21 W|52V 67 W/);
+  assert.match(rpsMarkup, /USW Pro HD 24/);
+  assert.doesNotMatch(rpsMarkup, /<img src=x/);
+  assert.doesNotMatch(rpsMarkup, /AC 故障|AC failure|power_source/);
+  const rpsUnavailable = app.unifiRPSMarkup({...udwUniFi, rps: {...rpsFixture, collection_status: 'unavailable'}});
+  assert.match(rpsUnavailable, /RPS 遥测源不可用/);
+  assert.equal(app.unifiRPSSectionVisible({...udwUniFi, rps: {supported: true, observed: false, collection_status: 'not_observed', devices: []}}), false);
   assert.match(portTelemetryMarkup, /unifi-ports-table/);
   assert.match(portTelemetryMarkup, /Port 7/);
   assert.match(portTelemetryMarkup, /2\.5 GbE/);

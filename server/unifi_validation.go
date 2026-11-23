@@ -149,6 +149,14 @@ func ValidateUniFiStats(stats *UniFiStats) error {
 			return err
 		}
 	}
+	if stats.RPS != nil {
+		if stats.API == nil || !stats.API.Enabled {
+			return validationError(validationCodeInvalidValue, "unifi.rps", "requires the read-only UniFi API collector")
+		}
+		if err := validateUniFiRPS(stats.RPS); err != nil {
+			return err
+		}
+	}
 	if stats.Power != nil {
 		if stats.Power.PSUSlots < 0 || stats.Power.PSUSlots > MaxUniFiPowerSupplies {
 			return validationError(validationCodeInvalidValue, "unifi.power.psu_slots", "is invalid")
@@ -199,7 +207,7 @@ func ValidateUniFiStats(stats *UniFiStats) error {
 		return validationError(validationCodeInvalidValue, "unifi.poe.absolute_max_poe_budget_w", "does not match the model power capability")
 	}
 	if !stats.Configured {
-		if stats.Profile != nil || stats.System != nil || stats.Stale || stats.Error != nil || stats.Transport.Status != UniFiTransportDisabled || (stats.API != nil && (stats.API.Enabled || stats.API.Status != "disabled")) {
+		if stats.Profile != nil || stats.System != nil || stats.RPS != nil || stats.Stale || stats.Error != nil || stats.Transport.Status != UniFiTransportDisabled || (stats.API != nil && (stats.API.Enabled || stats.API.Status != "disabled")) {
 			return validationError(validationCodeInvalidValue, "unifi", "disabled telemetry must not claim a collection result")
 		}
 	} else {
@@ -343,6 +351,205 @@ func validateUniFiAPI(value *UniFiAPIStats) error {
 	}
 	if err := validateUniFiAPITelemetry(value.Telemetry); err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateUniFiRPS(value *UniFiRPSStats) error {
+	if value.SchemaVersion != 1 {
+		return validationError(validationCodeInvalidValue, "unifi.rps.schema_version", "is unsupported")
+	}
+	if value.Source != "legacy_stat_device" || !value.Supported {
+		return validationError(validationCodeInvalidValue, "unifi.rps.source", "is unsupported")
+	}
+	if value.CollectionStatus != "available" && value.CollectionStatus != "partial" && value.CollectionStatus != "unavailable" && value.CollectionStatus != "not_observed" {
+		return validationError(validationCodeInvalidValue, "unifi.rps.collection_status", "is invalid")
+	}
+	if err := validateDateTime("unifi.rps.collected_at", value.CollectedAt, true); err != nil {
+		return err
+	}
+	if err := ValidateExtensionError("unifi.rps.error", value.Error); err != nil {
+		return err
+	}
+	if len(value.Devices) > MaxUniFiRPSDevices {
+		return validationError(validationCodeInvalidValue, "unifi.rps.devices", "is too large")
+	}
+	if value.Observed != (len(value.Devices) > 0) {
+		return validationError(validationCodeInvalidValue, "unifi.rps.observed", "must match the bounded device observations")
+	}
+	if value.CollectionStatus == "available" && (!value.Observed || value.Error != nil) {
+		return validationError(validationCodeInvalidValue, "unifi.rps.collection_status", "available requires an observed device without a component error")
+	}
+	if value.CollectionStatus == "unavailable" && value.Observed && value.Error == nil {
+		return validationError(validationCodeInvalidValue, "unifi.rps.error", "unavailable observed RPS requires a diagnostic")
+	}
+	if len(value.Devices) == 0 && value.Stale {
+		return validationError(validationCodeInvalidValue, "unifi.rps.stale", "an unobserved component cannot be stale")
+	}
+	for index := range value.Devices {
+		if err := validateUniFiRPSDevice(&value.Devices[index], "unifi.rps.devices."+strconv.Itoa(index)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateUniFiRPSDevice(device *UniFiRPSDevice, prefix string) error {
+	for field, text := range map[string]*string{"device_id": device.DeviceID, "model": device.Model, "legacy_model": device.LegacyModel, "model_id": device.ModelID, "firmware": device.Firmware} {
+		if err := validateOptionalString(prefix+"."+field, text, MaxUniFiTextLength); err != nil {
+			return err
+		}
+	}
+	if err := validateDateTime(prefix+".observed_at", device.ObservedAt, true); err != nil {
+		return err
+	}
+	if device.ModelProfileStatus != "known" && device.ModelProfileStatus != "unknown" {
+		return validationError(validationCodeInvalidValue, prefix+".model_profile_status", "is invalid")
+	}
+	if device.Status != "online" && device.Status != "offline" && device.Status != "unknown" {
+		return validationError(validationCodeInvalidValue, prefix+".status", "is invalid")
+	}
+	if device.IdentityStatus != "matched" && device.IdentityStatus != "ambiguous" && device.IdentityStatus != "unmatched" {
+		return validationError(validationCodeInvalidValue, prefix+".identity_status", "is invalid")
+	}
+	if device.Capabilities != nil {
+		if device.ModelID == nil || *device.ModelID != "USP-RPS" || device.ModelProfileStatus != "known" {
+			return validationError(validationCodeInvalidValue, prefix+".capabilities", "requires the verified USP-RPS Catalog identity")
+		}
+		if err := validateUniFiRPSCapabilities(device.Capabilities, prefix+".capabilities"); err != nil {
+			return err
+		}
+	}
+	if len(device.Ports) > MaxUniFiRPSPorts {
+		return validationError(validationCodeInvalidValue, prefix+".ports", "exceeds six fixed DC outputs")
+	}
+	seenPorts := make(map[int]struct{}, len(device.Ports))
+	var portSum float64
+	allPortPower := len(device.Ports) == MaxUniFiRPSPorts
+	for index := range device.Ports {
+		port := &device.Ports[index]
+		portPrefix := prefix + ".ports." + strconv.Itoa(index)
+		if port.Index < 1 || port.Index > MaxUniFiRPSPorts {
+			return validationError(validationCodeInvalidValue, portPrefix+".index", "is outside the fixed DC output range")
+		}
+		if _, exists := seenPorts[port.Index]; exists {
+			return validationError(validationCodeInvalidValue, portPrefix+".index", "is duplicated")
+		}
+		seenPorts[port.Index] = struct{}{}
+		if !validUniFiRPSPortState(port.ConnectionState) {
+			return validationError(validationCodeInvalidValue, portPrefix+".connection_state", "is invalid")
+		}
+		if port.RelationshipStatus != "matched" && port.RelationshipStatus != "ambiguous" && port.RelationshipStatus != "not_observed" {
+			return validationError(validationCodeInvalidValue, portPrefix+".relationship_status", "is invalid")
+		}
+		for field, text := range map[string]*string{"protected_device_id": port.ProtectedDeviceID, "protected_device_model": port.ProtectedDeviceModel} {
+			if err := validateOptionalString(portPrefix+"."+field, text, MaxUniFiTextLength); err != nil {
+				return err
+			}
+		}
+		if port.RelationshipStatus == "matched" && (port.ProtectedDeviceID == nil || *port.ProtectedDeviceID == "") {
+			return validationError(validationCodeInvalidValue, portPrefix+".protected_device_id", "matched relationship requires an exact device identity")
+		}
+		if port.RelationshipStatus != "matched" && port.ProtectedDeviceID != nil {
+			return validationError(validationCodeInvalidValue, portPrefix+".protected_device_id", "unmatched relationships cannot claim a protected device")
+		}
+		if err := validateDateTime(portPrefix+".observed_at", port.ObservedAt, true); err != nil {
+			return err
+		}
+		for busName, bus := range map[string]UniFiRPSBusOutput{"output_12v": port.Output12V, "output_54v": port.Output54V} {
+			for field, number := range map[string]*float64{"voltage_v": bus.VoltageV, "current_a": bus.CurrentA, "power_w": bus.PowerW} {
+				if err := validateOptionalFloat(portPrefix+"."+busName+"."+field, number, float64(MaxSafeInteger)); err != nil {
+					return err
+				}
+			}
+		}
+		if err := validateOptionalFloat(portPrefix+".measured_power_w", port.MeasuredPowerW, float64(MaxSafeInteger)); err != nil {
+			return err
+		}
+		if port.PowerQuality != "measured_output_sum" && port.PowerQuality != "unavailable" {
+			return validationError(validationCodeInvalidValue, portPrefix+".power_quality", "is invalid")
+		}
+		railValues := []*float64{port.Output12V.PowerW, port.Output54V.PowerW}
+		if port.PowerQuality == "measured_output_sum" {
+			if port.MeasuredPowerW == nil || railValues[0] == nil || railValues[1] == nil || math.Abs(*port.MeasuredPowerW-(*railValues[0]+*railValues[1])) > 0.01 {
+				return validationError(validationCodeInvalidValue, portPrefix+".measured_power_w", "does not match the explicit same-port output bus readings")
+			}
+		} else if port.MeasuredPowerW != nil {
+			return validationError(validationCodeInvalidValue, portPrefix+".measured_power_w", "unavailable power must remain null")
+		}
+		if port.MeasuredPowerW == nil {
+			allPortPower = false
+		} else {
+			portSum += *port.MeasuredPowerW
+		}
+	}
+	if err := validateOptionalFloat(prefix+".total_output_power_w", device.TotalOutputPowerW, float64(MaxSafeInteger)); err != nil {
+		return err
+	}
+	switch device.TotalOutputPowerQuality {
+	case "same_sample_port_sum":
+		if !allPortPower || device.TotalOutputPowerW == nil || math.Abs(*device.TotalOutputPowerW-portSum) > 0.01 {
+			return validationError(validationCodeInvalidValue, prefix+".total_output_power_w", "does not match complete same-sample DC port readings")
+		}
+	case "unavailable":
+		if device.TotalOutputPowerW != nil {
+			return validationError(validationCodeInvalidValue, prefix+".total_output_power_w", "unavailable power must remain null")
+		}
+	default:
+		return validationError(validationCodeInvalidValue, prefix+".total_output_power_quality", "is invalid")
+	}
+	return nil
+}
+
+func validUniFiRPSPortState(value string) bool {
+	switch value {
+	case "disconnected", "connecting", "connected_standby", "delivering_power", "insufficient_power", "power_overload", "psu_power_overload", "disabled", "unknown":
+		return true
+	default:
+		return false
+	}
+}
+
+func validateUniFiRPSCapabilities(value *UniFiRPSCapabilities, prefix string) error {
+	if value.SchemaVersion != 2 || value.CanonicalSKU != "USP-RPS" || value.DeviceType != "rps" || value.DisplayName == "" {
+		return validationError(validationCodeInvalidValue, prefix, "does not identify the versioned USP-RPS model")
+	}
+	management := value.ManagementInterface
+	if management.Type != "ethernet" || management.Count != 1 || management.Connector != "rj45" || management.SpeedMbps != 1000 {
+		return validationError(validationCodeInvalidValue, prefix+".management_interface", "is invalid")
+	}
+	if err := validateRequiredString(prefix+".management_interface.evidence_id", management.EvidenceID, MaxUniFiTextLength); err != nil {
+		return err
+	}
+	if !value.DCOutputs.Complete || len(value.DCOutputs.Items) != MaxUniFiRPSPorts {
+		return validationError(validationCodeInvalidValue, prefix+".dc_outputs", "must describe all six DC outputs")
+	}
+	for index, output := range value.DCOutputs.Items {
+		if output.Index != index+1 || output.Kind != "dc_power_output" || output.Label != "DC "+strconv.Itoa(index+1) {
+			return validationError(validationCodeInvalidValue, prefix+".dc_outputs.items", "is not the fixed six-output DC topology")
+		}
+	}
+	if len(value.DCPowerRails) != 2 {
+		return validationError(validationCodeInvalidValue, prefix+".dc_power_rails", "must contain two separate static rail ratings")
+	}
+	seen := map[string]struct{}{}
+	for _, rail := range value.DCPowerRails {
+		expectedVoltage, expectedCapacity := 0.0, 0.0
+		switch rail.ID {
+		case "rail-11v5":
+			expectedVoltage, expectedCapacity = 11.5, 350
+		case "rail-52v":
+			expectedVoltage, expectedCapacity = 52, 600
+		default:
+			return validationError(validationCodeInvalidValue, prefix+".dc_power_rails.id", "is unknown")
+		}
+		if _, exists := seen[rail.ID]; exists || rail.NominalVoltageV != expectedVoltage || rail.MaxCapacityW != expectedCapacity {
+			return validationError(validationCodeInvalidValue, prefix+".dc_power_rails", "does not match the separately documented static rail ratings")
+		}
+		seen[rail.ID] = struct{}{}
+		if err := validateRequiredString(prefix+".dc_power_rails.evidence_id", rail.EvidenceID, MaxUniFiTextLength); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -1074,6 +1281,7 @@ func SanitizeUniFiStats(input UniFiStats) UniFiStats {
 		}
 		result.API = &api
 	}
+	result.RPS = sanitizeUniFiRPSStats(input.RPS)
 	result.UpdatedAt = sanitizeStringPointer(result.UpdatedAt)
 	result.Error = sanitizeExtensionError(result.Error)
 	if input.Power != nil {
@@ -1148,6 +1356,57 @@ func SanitizeUniFiStats(input UniFiStats) UniFiStats {
 	sort.SliceStable(result.PowerSupplies, func(i, j int) bool { return result.PowerSupplies[i].ID < result.PowerSupplies[j].ID })
 	sort.SliceStable(result.Diagnostics.Ignored, func(i, j int) bool { return result.Diagnostics.Ignored[i].ID < result.Diagnostics.Ignored[j].ID })
 	return result
+}
+
+func sanitizeUniFiRPSStats(input *UniFiRPSStats) *UniFiRPSStats {
+	if input == nil {
+		return nil
+	}
+	result := *input
+	result.Source = SanitizeText(result.Source)
+	result.CollectedAt = sanitizeStringPointer(result.CollectedAt)
+	result.Error = sanitizeExtensionError(result.Error)
+	result.Devices = append([]UniFiRPSDevice(nil), input.Devices...)
+	if input.Devices != nil && result.Devices == nil {
+		result.Devices = make([]UniFiRPSDevice, 0)
+	}
+	for index := range result.Devices {
+		device := &result.Devices[index]
+		device.DeviceID = sanitizeStringPointer(device.DeviceID)
+		device.Model = sanitizeStringPointer(device.Model)
+		device.LegacyModel = sanitizeStringPointer(device.LegacyModel)
+		device.ModelID = sanitizeStringPointer(device.ModelID)
+		device.Firmware = sanitizeStringPointer(device.Firmware)
+		device.ObservedAt = sanitizeStringPointer(device.ObservedAt)
+		device.Ports = append([]UniFiRPSPort(nil), device.Ports...)
+		if device.Ports == nil {
+			device.Ports = make([]UniFiRPSPort, 0)
+		}
+		for portIndex := range device.Ports {
+			port := &device.Ports[portIndex]
+			port.ProtectedDeviceID = sanitizeStringPointer(port.ProtectedDeviceID)
+			port.ProtectedDeviceModel = sanitizeStringPointer(port.ProtectedDeviceModel)
+			port.ObservedAt = sanitizeStringPointer(port.ObservedAt)
+		}
+		if device.Capabilities != nil {
+			capabilities := *device.Capabilities
+			capabilities.CanonicalSKU = SanitizeText(capabilities.CanonicalSKU)
+			capabilities.DisplayName = SanitizeText(capabilities.DisplayName)
+			capabilities.ManagementInterface.EvidenceID = SanitizeText(capabilities.ManagementInterface.EvidenceID)
+			capabilities.DCOutputs.Items = append([]UniFiRPSDCOutput(nil), capabilities.DCOutputs.Items...)
+			for outputIndex := range capabilities.DCOutputs.Items {
+				output := &capabilities.DCOutputs.Items[outputIndex]
+				output.Label = SanitizeText(output.Label)
+			}
+			capabilities.DCPowerRails = append([]UniFiRPSStaticRail(nil), capabilities.DCPowerRails...)
+			for railIndex := range capabilities.DCPowerRails {
+				capabilities.DCPowerRails[railIndex].ID = SanitizeText(capabilities.DCPowerRails[railIndex].ID)
+				capabilities.DCPowerRails[railIndex].EvidenceID = SanitizeText(capabilities.DCPowerRails[railIndex].EvidenceID)
+			}
+			device.Capabilities = &capabilities
+		}
+	}
+	return &result
 }
 
 func sanitizeOptionalUniFiFloat(value **float64) {

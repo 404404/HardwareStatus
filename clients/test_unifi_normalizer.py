@@ -6,7 +6,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 from unifi_profile_loader import load_profile
-from unifi_model_catalog import MODEL_DIRECTORY, load_catalog
+from unifi_api import _rps_projection
+from unifi_model_catalog import MODEL_DIRECTORY, load_catalog, resolve_model
 from unifi_normalizer import normalize
 
 def fixture(name):
@@ -47,6 +48,40 @@ class NormalizerTests(unittest.TestCase):
         self.assertEqual(result["storage"]["tf"]["present"], "not_present")
         self.assertEqual(result["system"]["cpu_model"], "Qualcomm IPQ5322")
         self.assertFalse(result["power"]["supported"])
+
+    def test_rps_is_normalized_as_separate_component_with_static_and_measured_power(self):
+        raw = fixture("ucg-max-raw.json")
+        source = json.loads((ROOT / "unifi_fixtures" / "usp-rps-raw.json").read_text(encoding="utf-8"))
+        rps = _rps_projection(source["legacy_stat_device"], source["devices"], source["collected_at"])
+        raw["api"] = {
+            "enabled": True, "status": "available", "last_attempt": source["collected_at"],
+            "last_success": source["collected_at"], "endpoints": [], "summary": None, "error": None,
+            "telemetry": {"rps": rps},
+        }
+        result = normalize(load_profile(self.profiles, "ucg-max"), raw, model=self.models["UCG-Max"])
+        self.assertEqual(result["rps"]["collection_status"], "available")
+        self.assertEqual(result["rps"]["devices"][0]["total_output_power_w"], 101)
+        self.assertEqual(result["rps"]["devices"][0]["total_output_power_quality"], "same_sample_port_sum")
+        caps = result["rps"]["devices"][0]["capabilities"]
+        self.assertEqual(caps["canonical_sku"], "USP-RPS")
+        self.assertEqual(resolve_model(self.models, "USP RPS", kind="api_model")["canonical_sku"], "USP-RPS")
+        self.assertEqual(resolve_model(self.models, "USPRPS", kind="legacy_model")["canonical_sku"], "USP-RPS")
+        self.assertEqual(resolve_model(self.models, "UCG Max", kind="api_model")["canonical_sku"], "UCG-Max")
+        self.assertEqual([rail["max_capacity_w"] for rail in caps["dc_power_rails"]], [350, 600])
+        self.assertNotIn("rails", result["rps"]["devices"][0])
+        self.assertTrue(result["rps"]["devices"][0]["ports"][4]["power_delivering"])
+        self.assertTrue(result["rps"]["devices"][0]["ports"][4]["power_active"])
+        self.assertEqual(len(caps["dc_outputs"]["items"]), 6)
+        self.assertTrue(all(item["kind"] == "dc_power_output" for item in caps["dc_outputs"]["items"]))
+        self.assertTrue(all("supported_rail_ids" not in item for item in caps["dc_outputs"]["items"]))
+        self.assertNotIn("rps", result["api"]["telemetry"])
+        self.assertFalse(result["stale"])
+
+        no_new_api_sample = fixture("ucg-max-raw.json")
+        no_new_api_sample["api"] = None
+        stale = normalize(load_profile(self.profiles, "ucg-max"), no_new_api_sample, result, model=self.models["UCG-Max"])
+        self.assertTrue(stale["rps"]["stale"])
+        self.assertTrue(stale["rps"]["devices"][0]["stale"])
 
     def test_memory_uptime_load_and_cpu_delta(self):
         profile = load_profile(self.profiles, "ucg-max")

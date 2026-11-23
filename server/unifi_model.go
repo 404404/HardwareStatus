@@ -42,6 +42,7 @@ type UniFiStats struct {
 	Profile       *string             `json:"profile"`
 	Transport     UniFiTransportStats `json:"transport"`
 	API           *UniFiAPIStats      `json:"api,omitempty"`
+	RPS           *UniFiRPSStats      `json:"rps,omitempty"`
 	System        *UniFiSystemStats   `json:"system"`
 	Fans          []UniFiFanStats     `json:"fans"`
 	Power         *UniFiPowerProfile  `json:"power,omitempty"`
@@ -100,6 +101,95 @@ type UniFiAPITelemetry struct {
 	LAGs         []UniFiAPILAG           `json:"lags"`
 	Topology     *UniFiAPITopology       `json:"topology"`
 	Anomalies    *UniFiAPIAnomalies      `json:"anomalies"`
+}
+
+// UniFiRPSStats is an independent optional component. Static RPS capabilities
+// are Catalog metadata; runtime telemetry is kept on individual DC outputs.
+type UniFiRPSStats struct {
+	SchemaVersion    int              `json:"schema_version"`
+	Source           string           `json:"source"`
+	Supported        bool             `json:"supported"`
+	CollectionStatus string           `json:"collection_status"`
+	Observed         bool             `json:"observed"`
+	CollectedAt      *string          `json:"collected_at"`
+	Stale            bool             `json:"stale"`
+	Error            *ExtensionError  `json:"error"`
+	Devices          []UniFiRPSDevice `json:"devices"`
+}
+
+type UniFiRPSDevice struct {
+	DeviceID                *string               `json:"device_id"`
+	Model                   *string               `json:"model"`
+	LegacyModel             *string               `json:"legacy_model"`
+	ModelID                 *string               `json:"model_id"`
+	ModelProfileStatus      string                `json:"model_profile_status"`
+	Capabilities            *UniFiRPSCapabilities `json:"capabilities"`
+	Status                  string                `json:"status"`
+	Firmware                *string               `json:"firmware"`
+	IdentityStatus          string                `json:"identity_status"`
+	TelemetryObserved       bool                  `json:"telemetry_observed"`
+	ObservedAt              *string               `json:"observed_at"`
+	Stale                   bool                  `json:"stale"`
+	Ports                   []UniFiRPSPort        `json:"ports"`
+	TotalOutputPowerW       *float64              `json:"total_output_power_w"`
+	TotalOutputPowerQuality string                `json:"total_output_power_quality"`
+}
+
+type UniFiRPSCapabilities struct {
+	SchemaVersion       int                         `json:"schema_version"`
+	CanonicalSKU        string                      `json:"canonical_sku"`
+	DisplayName         string                      `json:"display_name"`
+	DeviceType          string                      `json:"device_type"`
+	ManagementInterface UniFiRPSManagementInterface `json:"management_interface"`
+	DCOutputs           UniFiRPSDCOutputs           `json:"dc_outputs"`
+	DCPowerRails        []UniFiRPSStaticRail        `json:"dc_power_rails"`
+}
+
+type UniFiRPSManagementInterface struct {
+	Type       string `json:"type"`
+	Count      int    `json:"count"`
+	Connector  string `json:"connector"`
+	SpeedMbps  int    `json:"speed_mbps"`
+	EvidenceID string `json:"evidence_id"`
+}
+
+type UniFiRPSDCOutputs struct {
+	Complete bool               `json:"complete"`
+	Items    []UniFiRPSDCOutput `json:"items"`
+}
+
+type UniFiRPSDCOutput struct {
+	Index int    `json:"index"`
+	Kind  string `json:"kind"`
+	Label string `json:"label"`
+}
+
+type UniFiRPSStaticRail struct {
+	ID              string  `json:"id"`
+	NominalVoltageV float64 `json:"nominal_voltage_v"`
+	MaxCapacityW    float64 `json:"max_capacity_w"`
+	EvidenceID      string  `json:"evidence_id"`
+}
+
+type UniFiRPSPort struct {
+	Index                int               `json:"index"`
+	ConnectionState      string            `json:"connection_state"`
+	PowerActive          *bool             `json:"power_active"`
+	PowerDelivering      *bool             `json:"power_delivering"`
+	ProtectedDeviceID    *string           `json:"protected_device_id"`
+	ProtectedDeviceModel *string           `json:"protected_device_model"`
+	RelationshipStatus   string            `json:"relationship_status"`
+	ObservedAt           *string           `json:"observed_at"`
+	Output12V            UniFiRPSBusOutput `json:"output_12v"`
+	Output54V            UniFiRPSBusOutput `json:"output_54v"`
+	MeasuredPowerW       *float64          `json:"measured_power_w"`
+	PowerQuality         string            `json:"power_quality"`
+}
+
+type UniFiRPSBusOutput struct {
+	VoltageV *float64 `json:"voltage_v"`
+	CurrentA *float64 `json:"current_a"`
+	PowerW   *float64 `json:"power_w"`
 }
 
 type UniFiAPISite struct {

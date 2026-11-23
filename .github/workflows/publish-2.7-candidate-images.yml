@@ -14,7 +14,6 @@ concurrency:
 
 permissions:
   contents: read
-  packages: write
 
 env:
   IMAGE_REGISTRY: ghcr.io
@@ -232,9 +231,12 @@ jobs:
 
   publish:
     needs: [catalog, contracts, go, python, frontend, compose, security, images]
-    if: ${{ needs.images.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    if: ${{ needs.images.result == 'success' && github.repository == '404404/HardwareStatus' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && startsWith(github.ref, 'refs/heads/codex/2.7-') }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Prepare publish provenance
         id: provenance

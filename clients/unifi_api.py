@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from http.client import HTTPSConnection
 from urllib.parse import quote, urlsplit
 
-from unifi_model_catalog import MODEL_DIRECTORY, load_catalog, resolve_model
+from unifi_model_catalog import MODEL_DIRECTORY, load_catalog, project_static_capabilities, resolve_model
 
 API_ENDPOINTS = (
     ("info", "/proxy/network/integration/v1/info"),
@@ -419,6 +419,192 @@ def _status_online(value):
     if text in {"offline", "disconnected", "down", "inactive", "error"}:
         return False
     return None
+
+
+RPS_PORT_STATES = {
+    "disconnected": "disconnected",
+    "connecting": "connecting",
+    "connected_standby": "connected_standby",
+    "connected (standby)": "connected_standby",
+    "connected standby": "connected_standby",
+    "delivering_power": "delivering_power",
+    "delivering power": "delivering_power",
+    "power delivering": "delivering_power",
+    "insufficient_power_availability": "insufficient_power",
+    "insufficient power availability": "insufficient_power",
+    "power_overload": "power_overload",
+    "power overload": "power_overload",
+    "psu_power_overload": "psu_power_overload",
+    "psu power overload": "psu_power_overload",
+    "disabled": "disabled",
+}
+
+
+def _rps_state(value):
+    if not isinstance(value, str):
+        return "unknown"
+    token = " ".join(value.strip().casefold().replace("_", " ").split())
+    return RPS_PORT_STATES.get(token, "unknown")
+
+
+def _rps_peer_key(value):
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value.strip().casefold()
+
+
+def _rps_port_projection(port, devices, observed_at):
+    index = _counter(port, "port_idx", "portIndex", "index")
+    if index is None or index < 1 or index > 6:
+        return None
+    peer = port.get("peer") if isinstance(port.get("peer"), dict) else {}
+    peer_key = _rps_peer_key(_first(peer, "mac", "macAddress"))
+    peer_matches = [
+        item for item in devices
+        if peer_key is not None and peer_key == _rps_peer_key(_first(item, "macAddress", "mac", "hardwareAddress"))
+    ]
+    protected = peer_matches[0] if len(peer_matches) == 1 else None
+    peer_status = "matched" if protected is not None else "ambiguous" if len(peer_matches) > 1 else "not_observed"
+    result = {
+        "index": index,
+        "connection_state": _rps_state(_first(port, "port_state", "portState", "state")),
+        "power_active": _boolean(_first(port, "power_active", "powerActive")),
+        "power_delivering": _boolean(_first(port, "power_delivering", "powerDelivering")),
+        "protected_device_id": _identifier(_first(protected, "id", "device_id", "deviceId")) if protected else None,
+        "protected_device_model": _text(_first(protected, "model", "model_name", "modelName", "device_model")) if protected else None,
+        "relationship_status": peer_status,
+        "observed_at": observed_at,
+    }
+    for output, source_fields in (
+        ("output_12v", ("power_12v_voltage", "power_12v_current", "power_12v_power")),
+        ("output_54v", ("power_54v_voltage", "power_54v_current", "power_54v_power")),
+    ):
+        result[output] = {
+            "voltage_v": _decimal(_first(port, source_fields[0]), minimum=0),
+            "current_a": _decimal(_first(port, source_fields[1]), minimum=0),
+            "power_w": _decimal(_first(port, source_fields[2]), minimum=0),
+        }
+    rail_power = [result[rail]["power_w"] for rail in ("output_12v", "output_54v")]
+    result["measured_power_w"] = sum(rail_power) if all(value is not None for value in rail_power) else None
+    result["power_quality"] = "measured_output_sum" if result["measured_power_w"] is not None else "unavailable"
+    return result
+
+
+def _rps_total_power(ports):
+    if len(ports) == 6 and {item["index"] for item in ports} == set(range(1, 7)):
+        values = [item.get("measured_power_w") for item in ports]
+        if all(value is not None for value in values):
+            return sum(values), "same_sample_port_sum"
+    return None, "unavailable"
+
+
+def _rps_projection(legacy_payload, devices, collected_at):
+    """Sanitize RPS observations from the already-authorized stat/device source."""
+    device_records = [item for item in (devices or [])[:MAX_API_ITEMS] if isinstance(item, dict)]
+    api_rps = []
+    for item in device_records:
+        model_name = _text(_first(item, "model", "model_name", "modelName", "device_model"))
+        resolved = resolve_model(MODEL_CATALOG, model_name, kind="api_model")
+        if resolved is not None and resolved.get("device_type") == "rps":
+            api_rps.append(item)
+    api_rps = api_rps[:8]
+    if legacy_payload is None:
+        collection_status = "unavailable" if api_rps else "not_observed"
+        legacy_records = []
+    else:
+        collection_status = "not_observed"
+        legacy_records = _items(legacy_payload)
+    legacy_rps = []
+    for item in legacy_records[:MAX_API_ITEMS]:
+        model_name = _text(_first(item, "model", "model_name", "modelName", "device_model"))
+        resolved = resolve_model(MODEL_CATALOG, model_name, kind="legacy_model")
+        if resolved is not None and resolved.get("device_type") == "rps":
+            legacy_rps.append(item)
+    projected = []
+    for api_device in api_rps:
+        api_id = _identifier(_first(api_device, "id", "device_id", "deviceId", "_id"))
+        api_peer_identity = _rps_peer_key(_first(api_device, "macAddress", "mac", "hardwareAddress"))
+        matches = [
+            item for item in legacy_rps
+            if api_peer_identity is not None and api_peer_identity == _rps_peer_key(_first(item, "mac", "macAddress", "hardwareAddress"))
+        ]
+        legacy = matches[0] if len(matches) == 1 else None
+        identity_status = "matched" if legacy is not None else "ambiguous" if len(matches) > 1 else "unmatched"
+        legacy_model = _text(_first(legacy, "model", "model_name", "modelName")) if legacy else None
+        observed_at = _timestamp_value(_first(legacy, "last_seen", "lastSeen")) if legacy else None
+        legacy_rps_data = legacy.get("rps") if isinstance(legacy, dict) and isinstance(legacy.get("rps"), dict) else {}
+        raw_ports = legacy_rps_data.get("rps_port_table")
+        ports = []
+        seen_port_indexes = set()
+        if identity_status == "matched" and isinstance(raw_ports, list):
+            for item in raw_ports[:6]:
+                if isinstance(item, dict):
+                    record = _rps_port_projection(item, device_records, observed_at)
+                    if record is not None and record["index"] not in seen_port_indexes:
+                        ports.append(record)
+                        seen_port_indexes.add(record["index"])
+        total_output_power_w, total_output_power_quality = _rps_total_power(ports)
+        model_id = resolved_model["canonical_sku"] if (resolved_model := resolve_model(
+            MODEL_CATALOG, _text(_first(api_device, "model", "model_name", "modelName")), kind="api_model"
+        )) is not None else None
+        static_capabilities = project_static_capabilities(resolved_model) if resolved_model is not None else None
+        projected.append({
+            "device_id": api_id,
+            "model": _text(_first(api_device, "model", "model_name", "modelName")),
+            "model_id": model_id,
+            "model_profile_status": "known" if model_id is not None else "unknown",
+            "capabilities": static_capabilities,
+            "legacy_model": legacy_model,
+            "status": "online" if _status_online(_first(api_device, "state", "status", "online")) is True else "offline" if _status_online(_first(api_device, "state", "status", "online")) is False else "unknown",
+            "firmware": _text(_first(api_device, "firmwareVersion", "firmware_version", "firmware")),
+            "identity_status": identity_status,
+            "telemetry_observed": legacy is not None and isinstance(raw_ports, list),
+            "observed_at": observed_at,
+            "stale": legacy is None or observed_at is None or _is_rps_stale(observed_at, collected_at),
+            "ports": sorted(ports, key=lambda item: item["index"]),
+            "total_output_power_w": total_output_power_w,
+            "total_output_power_quality": total_output_power_quality,
+        })
+    if api_rps and legacy_payload is not None:
+        complete = [
+            item.get("identity_status") == "matched" and item.get("telemetry_observed") and len(item.get("ports", [])) == 6
+            for item in projected
+        ]
+        collection_status = "available" if complete and all(complete) else "partial"
+    source_error = None
+    if api_rps and legacy_payload is None:
+        source_error = {
+            "code": "api_partial_failure",
+            "message": "UniFi RPS telemetry source is unavailable",
+            "source": "unifi-api",
+            "retryable": True,
+            "http_status": None,
+        }
+    return {
+        "schema_version": 1,
+        "source": "legacy_stat_device",
+        "supported": True,
+        "collection_status": collection_status,
+        "observed": bool(api_rps),
+        "collected_at": collected_at,
+        "stale": any(item["stale"] for item in projected),
+        "error": source_error,
+        "devices": projected,
+    }
+
+
+def _is_rps_stale(observed_at, collected_at, max_age_seconds=300):
+    observed = _timestamp_value(observed_at)
+    collected = _timestamp_value(collected_at)
+    if observed is None or collected is None:
+        return True
+    try:
+        observed_dt = datetime.fromisoformat(observed.replace("Z", "+00:00"))
+        collected_dt = datetime.fromisoformat(collected.replace("Z", "+00:00"))
+    except ValueError:
+        return True
+    age = (collected_dt - observed_dt).total_seconds()
+    return age < -60 or age > max_age_seconds
 
 
 def _device_summary(devices, *, target=None, target_detail=None, ports=None):
@@ -1493,6 +1679,7 @@ def _telemetry(payloads, *, site=None, target=None, previous_samples=None, sampl
         "lags": _lag_records(payloads["lags"]) if payloads.get("lags") is not None else None,
         "topology": _topology_summary(payloads["topology"]) if payloads.get("topology") is not None else None,
         "anomalies": _anomaly_summary(payloads["port_anomalies"]) if payloads.get("port_anomalies") is not None else None,
+        "rps": _rps_projection(payloads.get("legacy_stat_device"), devices, _now()) if payloads.get("devices") is not None else None,
     }
     return telemetry if any(value is not None for value in telemetry.values()) else None
 

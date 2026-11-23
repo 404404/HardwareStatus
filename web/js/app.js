@@ -1542,6 +1542,62 @@ function unifiPowerText(value){
   return `${Number(number.toFixed(number >= 10 ? 1 : 2))} W`;
 }
 
+function unifiRPSPowerText(value){
+  const number = finiteNumber(value);
+  if(number === null) return '—';
+  return `${Number(number.toFixed(number >= 10 ? 1 : 2))} W`;
+}
+
+function unifiRPSStateText(value){
+  return ({
+    disconnected: '未连接', connecting: '连接中', connected_standby: '已连接（待命）',
+    delivering_power: '正在供电', insufficient_power: '供电能力不足',
+    power_overload: '输出过载', psu_power_overload: '电源过载', disabled: '已禁用', unknown: '未知'
+  })[value] || '未知';
+}
+
+function unifiRPSBooleanText(value){
+  return value === true ? '是' : value === false ? '否' : '未知';
+}
+
+function unifiRPSSectionVisible(unifi){
+  const rps = safeObject(unifi?.rps);
+  return rps.observed === true && Array.isArray(rps.devices) && rps.devices.length > 0;
+}
+
+function unifiRPSMarkup(unifi){
+  const rps = safeObject(unifi?.rps);
+  if(!unifiRPSSectionVisible(unifi)){
+    return rps.collection_status === 'unavailable'
+      ? '<div class="table-empty">RPS 设备已识别，但当前没有可用的 RPS 遥测。</div>'
+      : '<div class="table-empty">当前未观测到 USP-RPS。</div>';
+  }
+  const devices = rps.devices.slice(0, 8).map(device => {
+    const capabilities = safeObject(device.capabilities);
+    const staticRails = Array.isArray(capabilities.dc_power_rails) ? capabilities.dc_power_rails : [];
+    const railText = staticRails.map(rail => `${unifiRPSPowerText(rail.nominal_voltage_v).replace(' W', ' V')} / ${unifiRPSPowerText(rail.max_capacity_w)}`).join(' · ') || '静态额定值未维护';
+    const totalQuality = ({same_sample_port_sum: '六路同次实测合计', unavailable: '未提供'})[device.total_output_power_quality] || '未提供';
+    const totalText = `${unifiRPSPowerText(device.total_output_power_w)}（${totalQuality}）`;
+    const portRows = (Array.isArray(device.ports) ? device.ports : []).slice(0, 6).map(port => {
+      const protectedDevice = port.relationship_status === 'matched'
+        ? `${textOrDash(port.protected_device_model)}${port.protected_device_id ? ` · ${port.protected_device_id}` : ''}`
+        : port.relationship_status === 'ambiguous' ? '关联不唯一' : '未观测到精确关联';
+      const railOutputs = `12 V 通道 ${unifiRPSPowerText(safeObject(port.output_12v).power_w)} · 54 V 通道 ${unifiRPSPowerText(safeObject(port.output_54v).power_w)}`;
+      const measured = port.power_quality === 'measured_output_sum' ? unifiRPSPowerText(port.measured_power_w) : '—';
+      return `<tr><td class="strong-cell">DC ${escapeHtml(String(port.index ?? '—'))}</td><td>${escapeHtml(unifiRPSStateText(port.connection_state))}</td><td>${escapeHtml(unifiRPSBooleanText(port.power_active))}</td><td>${escapeHtml(unifiRPSBooleanText(port.power_delivering))}</td><td>${escapeHtml(protectedDevice)}</td><td>${escapeHtml(railOutputs)}</td><td>${escapeHtml(measured)}</td></tr>`;
+    }).join('') || '<tr><td colspan="7" class="table-empty">当前未取得输出口状态。</td></tr>';
+    const deviceName = textOrDash(device.model) === '-' ? 'USP-RPS' : device.model;
+    const staleText = device.stale ? ' · 遥测已陈旧' : '';
+    return `<article class="unifi-rps-device"><div class="unifi-rps-summary"><strong>${escapeHtml(deviceName)}</strong><span>状态：${escapeHtml(device.status || 'unknown')}</span><span>总实测输出：${escapeHtml(totalText)}</span><span>静态额定轨（分列）：${escapeHtml(railText)}</span><span>采样：${escapeHtml(formatDateTime(device.observed_at))}${staleText}</span></div><div class="table-wrap"><table class="data unifi-rps-table"><thead><tr><th>直流输出</th><th>连接状态</th><th>电源激活</th><th>正在供电</th><th>精确关联设备</th><th>遥测功率通道</th><th>端口实测合计</th></tr></thead><tbody>${portRows}</tbody></table></div></article>`;
+  }).join('');
+  const notice = rps.collection_status === 'unavailable'
+    ? '<div class="unifi-api-unavailable">已识别 RPS，但当前 RPS 遥测源不可用。</div>'
+    : rps.collection_status === 'partial'
+      ? '<div class="unifi-api-unavailable">部分 RPS 设备/输出观测不可用。</div>'
+      : '';
+  return `<div class="unifi-rps-content">${notice}${devices}</div>`;
+}
+
 function unifiPortPoeText(port){
   const roles = Array.isArray(port?.roles) ? port.roles : [];
   if(roles.includes('poe_passthrough')) return port?.poe_passthrough_enabled === true ? '透传' : '-';
@@ -1806,6 +1862,8 @@ function renderUniFi(view){
   for(const section of document.querySelectorAll('#unifiPage > section')) section.hidden = pageUnavailable;
   const powerSection = document.querySelector('#unifiPage section[aria-labelledby="unifiPowerTitle"]');
   if(powerSection) powerSection.hidden = pageUnavailable || !unifiPowerSectionVisible(unifi);
+  const rpsSection = document.querySelector('#unifiPage section[aria-labelledby="unifiRPSTitle"]');
+  if(rpsSection) rpsSection.hidden = pageUnavailable || !unifiRPSSectionVisible(unifi);
   const summaryRows = [
     ['配置状态/机器配置', configured ? `已配置 / ${textOrDash(unifi.profile)}` : '未配置 / -', '传输状态', `<span class="badge ${statusTone(summary.status)}">${escapeHtml(summary.text)}</span>`, '数据状态', unifi.stale ? '<span class="badge warn">已陈旧</span>' : configured && summary.status === 'available' ? '<span class="badge ok">最新</span>' : '-'],
     ['上次尝试', formatDateTime(transport.last_attempt), '最近成功', formatDateTime(transport.last_success), '数据更新时间', formatDateTime(unifi.updated_at)],
@@ -1819,6 +1877,8 @@ function renderUniFi(view){
   const apiTelemetry = byId('unifiApiTelemetry');
   if(apiTelemetry) apiTelemetry.innerHTML = '';
   byId('unifiPorts').innerHTML = configured ? unifiPortTelemetryMarkup(unifi) : '<div class="unifi-api-unavailable">未配置 UniFi 目标。</div>';
+  const rpsContainer = byId('unifiRPS');
+  if(rpsContainer) rpsContainer.innerHTML = configured ? unifiRPSMarkup(unifi) : '';
   byId('unifiWan').innerHTML = configured ? unifiWanMarkup(unifi) : '<div class="table-empty">未配置 UniFi 目标。</div>';
   byId('unifiStorage').innerHTML = configured ? unifiStorageMarkup(unifi) : '<div class="table-empty">未配置 UniFi 目标。</div>';
   byId('unifiFansBody').innerHTML = configured ? unifiFanRows(unifi) : '<tr><td colspan="6" class="table-empty">未配置 UniFi 目标。</td></tr>';
@@ -2542,6 +2602,8 @@ const exported = {
   unifiFanRows,
   unifiPowerRows,
   unifiPowerSectionVisible,
+  unifiRPSSectionVisible,
+  unifiRPSMarkup,
   unifiStorageRows,
   unifiStorageMarkup,
   fittedFontSize,

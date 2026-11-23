@@ -17,6 +17,9 @@ func extensionOpenAPISchemas() map[string]any {
 	nullableNumber := func(description string) map[string]any {
 		return map[string]any{"type": []string{"number", "null"}, "minimum": MinTemperatureCelsius, "maximum": MaxTemperatureCelsius, "description": description}
 	}
+	nullableRPSNumber := func(description string) map[string]any {
+		return map[string]any{"type": []string{"number", "null"}, "minimum": 0, "maximum": float64(MaxSafeInteger), "description": description}
+	}
 	nullableDuration := func(description string) map[string]any {
 		return map[string]any{"type": []string{"number", "null"}, "minimum": 0, "maximum": 86400, "description": description}
 	}
@@ -585,6 +588,61 @@ func extensionOpenAPISchemas() map[string]any {
 		"cpu_model": nullableString(MaxCPUModelLength, "Qualified UniFi CPU model from profile"), "cpu_usage_percent": map[string]any{"type": []string{"number", "null"}, "minimum": 0, "maximum": 100}, "cpu_usage_reason": map[string]any{"type": []string{"string", "null"}, "enum": []any{"insufficient_delta", "counter_reset", "zero_delta", "invalid_sample", nil}},
 		"cpu_temperature_c": map[string]any{"type": []string{"number", "null"}, "minimum": MinTemperatureCelsius, "maximum": MaxTemperatureCelsius}, "memory": nullableRef("UniFiMemoryStats"), "uptime_seconds": map[string]any{"type": []string{"number", "null"}, "minimum": 0}, "load_average": nullableRef("UniFiLoadAverage"),
 	})
+	uniFiRPSBusOutput := requiredObject([]string{"voltage_v", "current_a", "power_w"}, map[string]any{
+		"voltage_v": nullableRPSNumber("Measured DC output voltage"),
+		"current_a": nullableRPSNumber("Measured DC output current"),
+		"power_w":   nullableRPSNumber("Measured DC output power"),
+	})
+	uniFiRPSStaticRail := requiredObject([]string{"id", "nominal_voltage_v", "max_capacity_w", "evidence_id"}, map[string]any{
+		"id":                map[string]any{"type": "string", "enum": []string{"rail-11v5", "rail-52v"}},
+		"nominal_voltage_v": nullableRPSNumber("Static rated rail voltage"),
+		"max_capacity_w":    nullableRPSNumber("Static rated rail capacity"),
+		"evidence_id":       stringOpenAPISchema(),
+	})
+	uniFiRPSOutput := requiredObject([]string{"index", "kind", "label"}, map[string]any{
+		"index": map[string]any{"type": "integer", "minimum": 1, "maximum": MaxUniFiRPSPorts},
+		"kind":  map[string]any{"type": "string", "const": "dc_power_output"},
+		"label": map[string]any{"type": "string", "maxLength": MaxUniFiTextLength},
+	})
+	uniFiRPSCapabilities := requiredObject([]string{"schema_version", "canonical_sku", "display_name", "device_type", "management_interface", "dc_outputs", "dc_power_rails"}, map[string]any{
+		"schema_version": map[string]any{"type": "integer", "const": 2}, "canonical_sku": map[string]any{"type": "string", "const": "USP-RPS"},
+		"display_name": stringOpenAPISchema(), "device_type": map[string]any{"type": "string", "const": "rps"},
+		"management_interface": requiredObject([]string{"type", "count", "connector", "speed_mbps", "evidence_id"}, map[string]any{
+			"type": map[string]any{"type": "string", "const": "ethernet"}, "count": map[string]any{"type": "integer", "const": 1},
+			"connector": map[string]any{"type": "string", "const": "rj45"}, "speed_mbps": map[string]any{"type": "integer", "const": 1000}, "evidence_id": stringOpenAPISchema(),
+		}),
+		"dc_outputs": requiredObject([]string{"complete", "items"}, map[string]any{
+			"complete": map[string]any{"type": "boolean", "const": true}, "items": map[string]any{"type": "array", "minItems": MaxUniFiRPSPorts, "maxItems": MaxUniFiRPSPorts, "items": uniFiRPSOutput},
+		}),
+		"dc_power_rails": map[string]any{"type": "array", "minItems": 2, "maxItems": 2, "items": uniFiRPSStaticRail},
+	})
+	uniFiRPSPort := requiredObject([]string{"index", "connection_state", "power_active", "power_delivering", "protected_device_id", "protected_device_model", "relationship_status", "observed_at", "output_12v", "output_54v", "measured_power_w", "power_quality"}, map[string]any{
+		"index":            map[string]any{"type": "integer", "minimum": 1, "maximum": MaxUniFiRPSPorts},
+		"connection_state": map[string]any{"type": "string", "enum": []string{"disconnected", "connecting", "connected_standby", "delivering_power", "insufficient_power", "power_overload", "psu_power_overload", "disabled", "unknown"}},
+		"power_active":     map[string]any{"type": []string{"boolean", "null"}}, "power_delivering": map[string]any{"type": []string{"boolean", "null"}},
+		"protected_device_id": nullableString(MaxUniFiTextLength, "Exact controller device ID"), "protected_device_model": nullableString(MaxUniFiTextLength, "Exact controller model"),
+		"relationship_status": map[string]any{"type": "string", "enum": []string{"matched", "ambiguous", "not_observed"}}, "observed_at": nullableString(MaxTimestampLength, "RPS port observation time"),
+		"output_12v": uniFiRPSBusOutput, "output_54v": uniFiRPSBusOutput,
+		"measured_power_w": nullableRPSNumber("Measured same-port output bus power sum"), "power_quality": map[string]any{"type": "string", "enum": []string{"measured_output_sum", "unavailable"}},
+	})
+	uniFiRPSDevice := requiredObject([]string{"device_id", "model", "legacy_model", "model_id", "model_profile_status", "capabilities", "status", "firmware", "identity_status", "telemetry_observed", "observed_at", "stale", "ports", "total_output_power_w", "total_output_power_quality"}, map[string]any{
+		"device_id": nullableString(MaxUniFiTextLength, "Controller device identity"), "model": nullableString(MaxUniFiTextLength, "Integration API model"), "legacy_model": nullableString(MaxUniFiTextLength, "Legacy API model"),
+		"model_id": nullableString(MaxUniFiTextLength, "Catalog canonical SKU"), "model_profile_status": map[string]any{"type": "string", "enum": []string{"known", "unknown"}},
+		"capabilities": nullableRef("UniFiRPSCapabilities"), "status": map[string]any{"type": "string", "enum": []string{"online", "offline", "unknown"}},
+		"firmware": nullableString(MaxUniFiTextLength, "Device firmware"), "identity_status": map[string]any{"type": "string", "enum": []string{"matched", "ambiguous", "unmatched"}},
+		"telemetry_observed": map[string]any{"type": "boolean"}, "observed_at": nullableString(MaxTimestampLength, "RPS device observation time"), "stale": map[string]any{"type": "boolean"},
+		"ports":                      map[string]any{"type": "array", "maxItems": MaxUniFiRPSPorts, "items": uniFiRPSPort},
+		"total_output_power_w":       nullableRPSNumber("Measured total RPS output power"),
+		"total_output_power_quality": map[string]any{"type": "string", "enum": []string{"same_sample_port_sum", "unavailable"}},
+	})
+	uniFiRPS := requiredObject([]string{"schema_version", "source", "supported", "collection_status", "observed", "collected_at", "stale", "error", "devices"}, map[string]any{
+		"schema_version":    map[string]any{"type": "integer", "const": 1},
+		"source":            map[string]any{"type": "string", "const": "legacy_stat_device"},
+		"supported":         map[string]any{"type": "boolean", "const": true, "description": "Collector capability, not physical hardware presence"},
+		"collection_status": map[string]any{"type": "string", "enum": []string{"available", "partial", "unavailable", "not_observed"}},
+		"observed":          map[string]any{"type": "boolean"}, "collected_at": nullableString(MaxTimestampLength, "RPS collection time"), "stale": map[string]any{"type": "boolean"},
+		"error": nullableRef("ExtensionError"), "devices": map[string]any{"type": "array", "maxItems": MaxUniFiRPSDevices, "items": uniFiRPSDevice},
+	})
 	uniFiAPIEndpoint := requiredObject([]string{"name", "required", "status", "http_status", "error"}, map[string]any{
 		"name":        map[string]any{"type": "string", "enum": []string{"info", "sites", "devices", "device_detail", "device_stats", "normalization", "clients", "networks", "lags", "legacy_stat_device", "legacy_stat_health", "legacy_stat_sysinfo", "topology", "port_anomalies", "wan_official", "wan_enriched", "wan_isp_status", "wan_load_balance", "wan_load_balance_config", "wan_slas"}},
 		"required":    map[string]any{"type": "boolean"},
@@ -714,8 +772,8 @@ func extensionOpenAPISchemas() map[string]any {
 	uniFiStats := requiredObject([]string{"configured", "profile", "transport", "system", "fans", "power_supplies", "storage", "diagnostics", "updated_at", "stale", "error"}, map[string]any{
 		"configured": map[string]any{"type": "boolean"}, "profile": map[string]any{"type": []string{"string", "null"}, "enum": []any{"udw", "ucg-max", "unknown", nil}},
 		"transport": requiredObject([]string{"status", "last_attempt", "last_success"}, map[string]any{"status": map[string]any{"type": "string", "enum": []string{"disabled", "not_collected", "available", "unavailable"}}, "last_attempt": nullableString(MaxTimestampLength, "Latest collection attempt"), "last_success": nullableString(MaxTimestampLength, "Latest successful collection")}),
-		"api":       nullableRef("UniFiAPIStats"),
-		"system":    nullableRef("UniFiSystemStats"), "power": nullableRef("UniFiPowerProfile"), "poe": nullableRef("UniFiPoEProfile"),
+		"api":       nullableRef("UniFiAPIStats"), "rps": nullableRef("UniFiRPSStats"),
+		"system": nullableRef("UniFiSystemStats"), "power": nullableRef("UniFiPowerProfile"), "poe": nullableRef("UniFiPoEProfile"),
 		"fans": map[string]any{"type": "array", "maxItems": MaxUniFiFans, "items": schemaRef("UniFiFanStats"), "default": []any{}}, "power_supplies": map[string]any{"type": "array", "maxItems": MaxUniFiPowerSupplies, "items": schemaRef("UniFiPowerStats"), "default": []any{}},
 		"storage": requiredObject([]string{"nvme"}, map[string]any{
 			"nvme":     requiredObject([]string{"supported", "present", "observed"}, map[string]any{"supported": uniFiCapability, "present": uniFiPresence, "observed": map[string]any{"type": "boolean"}, "capacity_bytes": nullableInteger(MaxSafeInteger, "Storage capacity bytes"), "filesystem_total_bytes": nullableInteger(MaxSafeInteger, "Mounted filesystem total bytes")}),
@@ -846,6 +904,13 @@ func extensionOpenAPISchemas() map[string]any {
 		"UniFiAPIDeviceSummary":         uniFiAPIDevices,
 		"UniFiAPINetworkSummary":        uniFiAPINetworks,
 		"UniFiAPITelemetry":             uniFiAPITelemetry,
+		"UniFiRPSBusOutput":             uniFiRPSBusOutput,
+		"UniFiRPSStaticRail":            uniFiRPSStaticRail,
+		"UniFiRPSDCOutput":              uniFiRPSOutput,
+		"UniFiRPSCapabilities":          uniFiRPSCapabilities,
+		"UniFiRPSPort":                  uniFiRPSPort,
+		"UniFiRPSDevice":                uniFiRPSDevice,
+		"UniFiRPSStats":                 uniFiRPS,
 		"UniFiStats":                    uniFiStats,
 		"StatsServer":                   statsServer,
 		"StatsDocument":                 statsDocument,

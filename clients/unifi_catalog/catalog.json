@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "models": [
     {
       "schema_version": 1,
@@ -1425,6 +1425,91 @@
         "status": "unknown",
         "count": null
       }
+    },
+    {
+      "schema_version": 2,
+      "canonical_sku": "USP-RPS",
+      "display_name": "UniFi Redundant Power System",
+      "device_type": "rps",
+      "official_evidence_ids": [
+        "official-usp-rps-techspecs-20261123"
+      ],
+      "runtime_identifiers": {
+        "api_model": [
+          {
+            "value": "USP RPS",
+            "status": "verified",
+            "provenance": "integration_api.devices.data[].model",
+            "evidence_id": "runtime-usp-rps-controller-identity-20261122"
+          }
+        ],
+        "legacy_model": [
+          {
+            "value": "USPRPS",
+            "status": "verified",
+            "provenance": "legacy_stat_device.data[].model",
+            "evidence_id": "runtime-usp-rps-controller-identity-20261122"
+          }
+        ],
+        "sysid": [],
+        "ssh_model": []
+      },
+      "management_interface": {
+        "type": "ethernet",
+        "count": 1,
+        "connector": "rj45",
+        "speed_mbps": 1000,
+        "evidence_id": "official-usp-rps-techspecs-20261123"
+      },
+      "dc_outputs": {
+        "complete": true,
+        "items": [
+          {
+            "index": 1,
+            "kind": "dc_power_output",
+            "label": "DC 1"
+          },
+          {
+            "index": 2,
+            "kind": "dc_power_output",
+            "label": "DC 2"
+          },
+          {
+            "index": 3,
+            "kind": "dc_power_output",
+            "label": "DC 3"
+          },
+          {
+            "index": 4,
+            "kind": "dc_power_output",
+            "label": "DC 4"
+          },
+          {
+            "index": 5,
+            "kind": "dc_power_output",
+            "label": "DC 5"
+          },
+          {
+            "index": 6,
+            "kind": "dc_power_output",
+            "label": "DC 6"
+          }
+        ]
+      },
+      "dc_power_rails": [
+        {
+          "id": "rail-11v5",
+          "nominal_voltage_v": 11.5,
+          "max_capacity_w": 350,
+          "evidence_id": "official-usp-rps-techspecs-20261123"
+        },
+        {
+          "id": "rail-52v",
+          "nominal_voltage_v": 52,
+          "max_capacity_w": 600,
+          "evidence_id": "official-usp-rps-techspecs-20261123"
+        }
+      ]
     },
     {
       "schema_version": 1,
