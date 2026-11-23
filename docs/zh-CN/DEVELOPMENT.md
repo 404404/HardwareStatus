@@ -1,7 +1,8 @@
 # 开发
 
 基于 [404404/HardwareStatus](https://github.com/404404/HardwareStatus) 的当前 `2.0`
-主线开发。源码中仍保留多个 `hermesstatus` 兼容名称；不能仅因仓库改名而重命名运行时接口。
+主线开发。源码保留有文档说明的 `hermesstatus` 兼容接口；新部署资源使用
+`hardwarestatus-*`。运行时别名只能在具备明确映射及冲突测试时变更。
 
 ## 变更原则
 

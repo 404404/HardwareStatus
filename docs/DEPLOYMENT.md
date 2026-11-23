@@ -1,12 +1,11 @@
 # Deployment
 
-Deploy only immutable GitHub-CI images from a recorded candidate. The currently
-published package names intentionally remain `hermesstatus-server` and
-`hermesstatus-client` after the repository rename.
+Deploy only immutable GitHub-CI images from a recorded candidate. New candidate
+packages use the canonical HardwareStatus namespace:
 
 ```yaml
-image: ghcr.io/404404/hermesstatus-server@sha256:<approved-server-digest>
-image: ghcr.io/404404/hermesstatus-client@sha256:<approved-client-digest>
+image: ghcr.io/404404/hardwarestatus-server@sha256:<approved-server-digest>
+image: ghcr.io/404404/hardwarestatus-client@sha256:<approved-client-digest>
 ```
 
 Do not replace these with `latest`, a broad version tag, or a local build.

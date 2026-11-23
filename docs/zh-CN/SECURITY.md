@@ -1,7 +1,8 @@
 # 安全
 
-HardwareStatus 被设计为只读。仓库更名不改变已部署环境的 `hermesstatus` 凭据路径、环境变量或
-镜像包名。
+HardwareStatus 被设计为只读。新环境变量前缀为 `HARDWARESTATUS_*`；既有
+`HERMESSTATUS_*` 输入继续兼容，冲突时 fail closed。已部署凭据路径和历史镜像产物继续保留；
+新部署使用 HardwareStatus 镜像命名空间。
 
 ## 身份与秘密
 

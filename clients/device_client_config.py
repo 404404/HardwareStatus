@@ -11,11 +11,13 @@ from typing import Any, Mapping, Sequence
 
 from multi_device_contracts import (
     ALLOWED_FIELDS,
+    ENV_ALIAS_PAIRS,
     ENV_TO_FIELD,
     ClientContractError,
     ClientV2Config,
     parse_config_json,
     resolve_client_config,
+    validate_environment_aliases,
     validate_readonly_file_path,
 )
 from secure_file import (
@@ -26,8 +28,9 @@ from secure_file import (
 )
 
 
-CONFIG_FILE_ENV = "HERMESSTATUS_CONFIG_FILE"
-BUILD_METADATA_ENV = {
+CONFIG_FILE_ENV = "HARDWARESTATUS_CONFIG_FILE"
+LEGACY_CONFIG_FILE_ENV = "HERMESSTATUS_CONFIG_FILE"
+_LEGACY_BUILD_METADATA_ENV = {
     "HERMESSTATUS_CLIENT_VERSION",
     "HERMESSTATUS_CLIENT_REVISION",
     "HERMESSTATUS_CLIENT_BUILD_TIME",
@@ -36,7 +39,16 @@ BUILD_METADATA_ENV = {
     "HERMESSTATUS_UNIFI_CATALOG_SCHEMA_VERSION",
     "HERMESSTATUS_UNIFI_CATALOG_SHA256",
 }
-KNOWN_V2_ENV = set(ENV_TO_FIELD) | {CONFIG_FILE_ENV} | BUILD_METADATA_ENV
+BUILD_METADATA_ENV = _LEGACY_BUILD_METADATA_ENV | {
+    key.replace("HERMESSTATUS_", "HARDWARESTATUS_", 1)
+    for key in _LEGACY_BUILD_METADATA_ENV
+}
+KNOWN_V2_ENV = set(ENV_TO_FIELD) | {CONFIG_FILE_ENV, LEGACY_CONFIG_FILE_ENV} | BUILD_METADATA_ENV
+V2_ENV_PREFIXES = ("HERMESSTATUS_", "HARDWARESTATUS_")
+METADATA_ALIAS_PAIRS = tuple(
+    (key.replace("HERMESSTATUS_", "HARDWARESTATUS_", 1), key)
+    for key in _LEGACY_BUILD_METADATA_ENV
+)
 LEGACY_TRANSPORT_KEYS = {"SERVER", "PORT", "SERVERSTATUS_USER", "PASSWORD"}
 MAX_CONFIG_FILE_BYTES = 64 << 10
 MAX_CA_FILE_BYTES = 1 << 20
@@ -64,9 +76,10 @@ def load_client_selection(
 ) -> ClientSelection:
     environment = dict(os.environ if environ is None else environ)
     cli_v2, cli_legacy = _parse_cli(arguments)
+    _validate_alias_pairs(environment, METADATA_ALIAS_PAIRS)
     environment_v2_keys = {
         key for key in environment
-        if key.startswith("HERMESSTATUS_") and key not in BUILD_METADATA_ENV
+        if key.startswith(V2_ENV_PREFIXES) and key not in BUILD_METADATA_ENV
     }
     has_v2_signal = bool(cli_v2 or environment_v2_keys)
     if not has_v2_signal:
@@ -77,16 +90,22 @@ def load_client_selection(
         raise ClientContractError("environment contains unknown v2 fields")
     if any(environment[key] == "" for key in environment_v2_keys):
         raise ClientContractError("environment contains empty v2 fields")
+    validate_environment_aliases(environment)
+    _validate_cross_source_aliases(cli_v2, environment)
+    _validate_alias_pair_across_sources(
+        cli_v2, environment, CONFIG_FILE_ENV, LEGACY_CONFIG_FILE_ENV
+    )
     mixed_environment = {
         key for key in LEGACY_TRANSPORT_KEYS if key in environment
     }
     if cli_legacy or mixed_environment:
         raise ClientContractError("legacy and device_v2 configuration must not be mixed")
 
-    config_file_value = cli_v2.pop(
-        CONFIG_FILE_ENV,
-        environment.get(CONFIG_FILE_ENV),
-    )
+    cli_config_path = _resolve_config_path_alias(cli_v2)
+    env_config_path = _resolve_config_path_alias(environment)
+    config_file_value = cli_config_path if cli_config_path is not None else env_config_path
+    cli_v2.pop(CONFIG_FILE_ENV, None)
+    cli_v2.pop(LEGACY_CONFIG_FILE_ENV, None)
     file_values: dict[str, Any] = {}
     if config_file_value not in (None, ""):
         config_path = validate_readonly_file_path(
@@ -174,10 +193,10 @@ def _parse_cli(arguments: Sequence[str]) -> tuple[dict[str, str], set[str]]:
     for argument in arguments:
         key, separator, value = argument.partition("=")
         if not separator:
-            if key.startswith("HERMESSTATUS_"):
+            if key.startswith(V2_ENV_PREFIXES):
                 raise ClientContractError("v2 CLI argument is invalid")
             continue
-        if key.startswith("HERMESSTATUS_"):
+        if key.startswith(V2_ENV_PREFIXES):
             if key not in KNOWN_V2_ENV or key in BUILD_METADATA_ENV:
                 raise ClientContractError("CLI contains unknown v2 fields")
             if value == "":
@@ -188,6 +207,45 @@ def _parse_cli(arguments: Sequence[str]) -> tuple[dict[str, str], set[str]]:
         elif key in LEGACY_TRANSPORT_KEYS or key == "USER":
             legacy.add(key)
     return v2, legacy
+
+
+def _validate_cross_source_aliases(cli: Mapping[str, str], environment: Mapping[str, str]) -> None:
+    for canonical, legacy in ENV_ALIAS_PAIRS:
+        canonical_values = [source[name] for source in (cli, environment) for name in (canonical,) if name in source]
+        legacy_values = [source[name] for source in (cli, environment) for name in (legacy,) if name in source]
+        if canonical_values and legacy_values and any(
+            new_value != old_value
+            for new_value in canonical_values
+            for old_value in legacy_values
+        ):
+            raise ClientContractError("canonical and legacy configuration aliases conflict")
+
+
+def _validate_alias_pairs(environment: Mapping[str, str], pairs: Sequence[tuple[str, str]]) -> None:
+    for canonical, legacy in pairs:
+        if canonical in environment and legacy in environment and environment[canonical] != environment[legacy]:
+            raise ClientContractError("canonical and legacy environment aliases conflict")
+
+
+def _validate_alias_pair_across_sources(
+    cli: Mapping[str, str], environment: Mapping[str, str], canonical: str, legacy: str
+) -> None:
+    canonical_values = [source[name] for source in (cli, environment) for name in (canonical,) if name in source]
+    legacy_values = [source[name] for source in (cli, environment) for name in (legacy,) if name in source]
+    if canonical_values and legacy_values and any(
+        new_value != old_value
+        for new_value in canonical_values
+        for old_value in legacy_values
+    ):
+        raise ClientContractError("canonical and legacy configuration aliases conflict")
+
+
+def _resolve_config_path_alias(source: Mapping[str, str]) -> str | None:
+    canonical = source.get(CONFIG_FILE_ENV)
+    legacy = source.get(LEGACY_CONFIG_FILE_ENV)
+    if canonical is not None and legacy is not None and canonical != legacy:
+        raise ClientContractError("canonical and legacy config-file aliases conflict")
+    return canonical if canonical is not None else legacy
 
 
 def _open_regular_file(path: str, *, error_code: str) -> int:

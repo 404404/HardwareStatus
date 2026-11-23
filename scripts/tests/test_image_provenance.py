@@ -13,15 +13,15 @@ SPEC.loader.exec_module(MODULE)
 REVISION = "a" * 40
 CREATED = "2026-07-21T00:00:00Z"
 SOURCE = "https://github.com/404404/HardwareStatus"
-PRODUCT_VERSION = "2.5"
-CANDIDATE_TAG = "2.5-" + REVISION[:12]
+PRODUCT_VERSION = "2.8"
+CANDIDATE_TAG = "2.8-" + REVISION[:12]
 
 
 def valid_inspect():
     return {
         "Id": "sha256:" + "b" * 64,
         "Config": {
-            "Entrypoint": ["/usr/local/bin/serverstatus"],
+            "Entrypoint": ["/usr/local/bin/hardwarestatus-server"],
             "Labels": {
                 "org.opencontainers.image.title": "HardwareStatus Server",
                 "org.opencontainers.image.description": "read-only dashboard",
@@ -30,9 +30,13 @@ def valid_inspect():
                 "org.opencontainers.image.created": CREATED,
                 "org.opencontainers.image.source": SOURCE,
                 "org.opencontainers.image.licenses": "MIT",
+                "io.hardwarestatus.component": "server",
                 "io.hermesstatus.component": "server",
             },
             "Env": [
+                "HARDWARESTATUS_CLIENT_VERSION=" + PRODUCT_VERSION,
+                "HARDWARESTATUS_CLIENT_REVISION=" + REVISION,
+                "HARDWARESTATUS_CLIENT_BUILD_TIME=" + CREATED,
                 "HERMESSTATUS_CLIENT_VERSION=" + PRODUCT_VERSION,
                 "HERMESSTATUS_CLIENT_REVISION=" + REVISION,
                 "HERMESSTATUS_CLIENT_BUILD_TIME=" + CREATED,
@@ -45,7 +49,7 @@ def validate(payload):
     return MODULE.validate_inspect(
         payload,
         expected_title="HardwareStatus Server",
-        expected_entrypoint=["/usr/local/bin/serverstatus"],
+        expected_entrypoint=["/usr/local/bin/hardwarestatus-server"],
         version=PRODUCT_VERSION,
         revision=payload["Config"]["Labels"]["org.opencontainers.image.revision"],
         created=payload["Config"]["Labels"]["org.opencontainers.image.created"],
@@ -81,11 +85,11 @@ class ImageProvenanceTests(unittest.TestCase):
         workflow = (
             pathlib.Path(__file__).resolve().parents[2] / ".github/workflows/ci.yml"
         ).read_text(encoding="utf-8")
-        self.assertIn('echo "candidate_tag=2.5-${GITHUB_SHA::12}"', workflow)
-        self.assertIn('echo "product_version=2.5"', workflow)
+        self.assertIn('echo "candidate_tag=2.8-${GITHUB_SHA::12}"', workflow)
+        self.assertIn('echo "product_version=2.8"', workflow)
         self.assertIn("VERSION=${{ steps.provenance.outputs.product_version }}", workflow)
-        self.assertIn("hermesstatus-server:${{ steps.provenance.outputs.candidate_tag }}", workflow)
-        self.assertIn("hermesstatus-client:${{ steps.provenance.outputs.candidate_tag }}", workflow)
+        self.assertIn("hardwarestatus-server:${{ steps.provenance.outputs.candidate_tag }}", workflow)
+        self.assertIn("hardwarestatus-client:${{ steps.provenance.outputs.candidate_tag }}", workflow)
 
     def test_server_dockerfile_copies_multi_device_contract_package(self):
         dockerfile = (
@@ -111,12 +115,14 @@ class ImageProvenanceTests(unittest.TestCase):
         dockerfile = (
             pathlib.Path(__file__).resolve().parents[2] / "Dockerfile.client"
         ).read_text(encoding="utf-8")
+        self.assertIn('io.hardwarestatus.component="client"', dockerfile)
         self.assertIn('io.hermesstatus.component="client"', dockerfile)
 
     def test_server_dockerfile_sets_server_component_metadata(self):
         dockerfile = (
             pathlib.Path(__file__).resolve().parents[2] / "Dockerfile.server"
         ).read_text(encoding="utf-8")
+        self.assertIn('io.hardwarestatus.component="server"', dockerfile)
         self.assertIn('io.hermesstatus.component="server"', dockerfile)
 
     def test_valid_metadata(self):
@@ -160,7 +166,7 @@ class ImageProvenanceTests(unittest.TestCase):
 
     def test_server_runtime_values_must_use_formal_product_version(self):
         values = MODULE.parse_server_version(
-            "serverstatus 2.5 commit=" + REVISION + " built=" + CREATED + "\n"
+            "hardwarestatus-server 2.8 commit=" + REVISION + " built=" + CREATED + "\n"
         )
         MODULE.validate_server_runtime_values(
             values, version=PRODUCT_VERSION, revision=REVISION, created=CREATED
@@ -169,6 +175,10 @@ class ImageProvenanceTests(unittest.TestCase):
         with self.assertRaises(MODULE.ValidationError):
             MODULE.validate_server_runtime_values(
                 values, version=PRODUCT_VERSION, revision=REVISION, created=CREATED
+            )
+        with self.assertRaises(MODULE.ValidationError):
+            MODULE.parse_server_version(
+                "serverstatus 2.8 commit=" + REVISION + " built=" + CREATED + "\n"
             )
 
     def test_component_role_mismatch_is_rejected(self):

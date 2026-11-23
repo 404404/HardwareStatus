@@ -9,7 +9,11 @@ import sys
 MAX_CREDENTIAL_BYTES = 4096
 
 def main() -> int:
-    path = os.environ.get("HERMESSTATUS_UNIFI_CREDENTIAL_FILE", "")
+    canonical = os.environ.get("HARDWARESTATUS_UNIFI_CREDENTIAL_FILE")
+    legacy = os.environ.get("HERMESSTATUS_UNIFI_CREDENTIAL_FILE")
+    if canonical is not None and legacy is not None and canonical != legacy:
+        return 1
+    path = canonical if canonical is not None else (legacy or "")
     if not path or "\x00" in path or not path.startswith("/") or ".." in path.split("/"):
         return 1
     try:

@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
-from unifi_api import API_COLLECTION_MAX_SECONDS, API_ENDPOINTS, APIError, UniFiAPICollector, _annotate_wan_payload, _context, _read_key, _request, _port_record, _ports, _device_summary, _merge_wans, _network_groups, _statistics_wans, _site_records, _v2_site_path, _legacy_site_path
+from unifi_api import API_COLLECTION_MAX_SECONDS, API_ENDPOINTS, APIError, UniFiAPICollector, _annotate_wan_payload, _context, _read_key, _request, _port_record, _ports, _device_descriptor, _device_summary, _merge_wans, _network_groups, _statistics_wans, _site_records, _v2_site_path, _legacy_site_path
 
 
 class UniFiAPITests(unittest.TestCase):
@@ -235,6 +235,19 @@ class UniFiAPITests(unittest.TestCase):
         self.assertEqual(_v2_site_path("default", "wan/enriched-configuration"), "/proxy/network/v2/api/site/default/wan/enriched-configuration")
         self.assertEqual(_legacy_site_path("default", "stat/health"), "/proxy/network/api/s/default/stat/health")
         self.assertNotIn("uuid-123", _v2_site_path("default", "topology"))
+
+    def test_verified_pro_max_24_api_identity_resolves_in_runtime_descriptor(self):
+        descriptor = _device_descriptor(
+            {"id": "synthetic-device", "model": "USW Pro Max 24 PoE", "type": "switch"},
+            include_capabilities=True,
+        )
+        self.assertEqual(descriptor["model"], "USW Pro Max 24 PoE")
+        self.assertEqual(descriptor["model_id"], "USW-Pro-Max-24-PoE")
+        self.assertEqual(descriptor["model_profile_status"], "known")
+        self.assertEqual(
+            descriptor["capabilities"]["poe"]["absolute_max_poe_budget_w"],
+            400,
+        )
 
     def test_missing_internal_reference_never_guesses_default(self):
         sites = _site_records({"data": [{"id": "uuid-123", "name": "Main"}]})
@@ -636,7 +649,7 @@ class UniFiAPITests(unittest.TestCase):
         records, _ = _ports({"data": []}, devices[0], {}, 1.0, devices=devices)
         self.assertEqual(records, [{
             "device_id": "mesh-1", "port_idx": 1, "name": "Port 1", "connector": "rj45",
-            "model_profile_status": "known", "media": "rj45", "roles": ["lan", "uplink", "data_in"], "poe_in": True, "poe_out": False,
+            "model_profile_status": "known", "media": "rj45", "roles": ["lan"], "poe_in": True, "poe_out": False,
             "model_id": "U6-Mesh", "max_speed_mbps": 1000.0,
             "poe_standard": "poe", "poe": {"supported": False, "class": "poe"},
         }])

@@ -1,7 +1,7 @@
 services:
-  hermesstatus-client:
-    image: ghcr.io/404404/hermesstatus-client:${HERMESSTATUS_CLIENT_TAG:?set approved immutable candidate tag}
-    container_name: hermesstatus-client-2x
+  hardwarestatus-client:
+    image: ghcr.io/404404/hardwarestatus-client:${HARDWARESTATUS_CLIENT_TAG:?set approved immutable candidate tag}
+    container_name: hardwarestatus-client
     restart: unless-stopped
     read_only: true
     network_mode: host
@@ -12,7 +12,7 @@ services:
       - /tmp:size=32m,mode=1777,nosuid,nodev,noexec
       - /run/hermesstatus:size=4m,mode=0700,nosuid,nodev,noexec
     environment:
-      HERMESSTATUS_CONFIG_FILE: /run/secrets/hermesstatus/client-config.json
+      HARDWARESTATUS_CONFIG_FILE: /run/secrets/hermesstatus/client-config.json
       HOST_OS_RELEASE_FILE: /host/etc/os-release
       HWMON_ROOT: /sys/class/hwmon
       DOCKER_SOCKET: /var/run/docker.sock

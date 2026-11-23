@@ -758,6 +758,11 @@ async function run(){
   app.writeStoredDeviceId(storage, '<script>');
   assert.equal(app.readStoredDeviceId(storage), null);
   assert.equal(stored.has(app.DEVICE_STORAGE_KEY), false);
+  stored.set(app.LEGACY_DEVICE_STORAGE_KEY, 'device-alpha');
+  assert.equal(app.readStoredDeviceId(storage), 'device-alpha');
+  assert.equal(stored.get(app.DEVICE_STORAGE_KEY), 'device-alpha');
+  assert.equal(stored.has(app.LEGACY_DEVICE_STORAGE_KEY), false);
+  assert.match(indexMarkup, /<title>HardwareStatus<\/title>/);
   const hostile = {
     servers: [{
       ...alpha,

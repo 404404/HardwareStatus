@@ -33,7 +33,7 @@
               "downstream",
               "poe_passthrough"
             ],
-            "max_speed_mbps": 1000,
+            "max_speed_mbps": 2500,
             "poe_in": false,
             "poe_out": true,
             "poe_standard": null,
@@ -94,7 +94,7 @@
               "uplink",
               "data_in"
             ],
-            "max_speed_mbps": 2500,
+            "max_speed_mbps": 1000,
             "poe_in": true,
             "poe_out": false,
             "poe_standard": null,
@@ -353,9 +353,7 @@
             "label": "Port 1",
             "connector": "rj45",
             "roles": [
-              "lan",
-              "uplink",
-              "data_in"
+              "lan"
             ],
             "max_speed_mbps": 1000,
             "poe_in": true,
@@ -454,9 +452,7 @@
             "label": "Port 1",
             "connector": "rj45",
             "roles": [
-              "lan",
-              "uplink",
-              "data_in"
+              "lan"
             ],
             "max_speed_mbps": 1000,
             "poe_in": true,
@@ -5260,7 +5256,14 @@
         "official-usw-pro-max-24-poe-techspecs-20260830"
       ],
       "runtime_identifiers": {
-        "api_model": [],
+        "api_model": [
+          {
+            "value": "USW Pro Max 24 PoE",
+            "status": "verified",
+            "provenance": "qualified_controller",
+            "evidence_id": "runtime-usw-pro-max-24-poe-controller-identity-20261122"
+          }
+        ],
         "sysid": [],
         "ssh_model": []
       },

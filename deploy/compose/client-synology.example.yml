@@ -1,9 +1,9 @@
 # Synology DSM Container Manager template for the Client only.
-# Set HERMESSTATUS_CLIENT_TAG to the exact approved candidate tag.
+# Set HARDWARESTATUS_CLIENT_TAG to the exact approved candidate tag.
 services:
-  hermesstatus-client:
-    image: ghcr.io/404404/hermesstatus-client:${HERMESSTATUS_CLIENT_TAG:?set approved immutable candidate tag}
-    container_name: hermesstatus-client-2x
+  hardwarestatus-client:
+    image: ghcr.io/404404/hardwarestatus-client:${HARDWARESTATUS_CLIENT_TAG:?set approved immutable candidate tag}
+    container_name: hardwarestatus-client
     restart: unless-stopped
     read_only: true
     network_mode: host
@@ -21,7 +21,7 @@ services:
       DSM_VERSION_FILE: /host/etc.defaults/VERSION
       HWMON_ROOT: /sys/class/hwmon
       DOCKER_SOCKET: /var/run/docker.sock
-      HERMESSTATUS_CONFIG_FILE: /run/secrets/hermesstatus/client-config.json
+      HARDWARESTATUS_CONFIG_FILE: /run/secrets/hermesstatus/client-config.json
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /etc/os-release:/host/etc/os-release:ro

@@ -1,11 +1,14 @@
 # Unified Client configuration
 
-This is the HardwareStatus public project. `HERMESSTATUS_CONFIG_FILE` and the
-`hermesstatus` container paths below are deliberately retained runtime
-compatibility interfaces.
+This is the HardwareStatus public project. New templates use
+`HARDWARESTATUS_CONFIG_FILE`; `HERMESSTATUS_CONFIG_FILE` remains an accepted
+alias. Supplying both with different paths fails closed. The existing
+`hermesstatus` container paths below are deliberately retained for migration
+compatibility.
 
-The Client reads one JSON document at HERMESSTATUS_CONFIG_FILE (canonical
-container path /run/secrets/hermesstatus/client-config.json). The document
+The Client reads one JSON document selected by `HARDWARESTATUS_CONFIG_FILE`
+(legacy alias `HERMESSTATUS_CONFIG_FILE`), conventionally mounted at
+`/run/secrets/hermesstatus/client-config.json`. The document
 uses schema_version: 1, rejects unknown fields, and names every collector
 explicitly. The Device v2 token remains a separate read-only mount at
 /run/secrets/hermesstatus-device-token.

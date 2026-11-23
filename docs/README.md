@@ -7,8 +7,9 @@ and the first collection-diagnostics work merged in PR #37. They describe
 current source behavior; they do not announce a new stable release or replace
 candidate provenance requirements.
 
-The repository is HardwareStatus. Runtime compatibility names beginning with
-`hermesstatus` remain intentionally unchanged; see the root [README](../README_EN.md).
+The canonical product, new deployment resources, and future GHCR packages are
+HardwareStatus. Compatibility interfaces remain available during migration;
+see [Rename compatibility](RENAME_COMPATIBILITY.md) and the root [README](../README_EN.md).
 
 | Document | Purpose |
 | --- | --- |
@@ -19,6 +20,7 @@ The repository is HardwareStatus. Runtime compatibility names beginning with
 | [Security](SECURITY.md) | Trust boundaries, secrets, TLS/SSH, and least privilege. |
 | [Operations](OPERATIONS.md) | Freshness, diagnostics, backup/recovery, and troubleshooting. |
 | [Development](DEVELOPMENT.md) | Checks, documentation expectations, and PR workflow. |
+| [Rename compatibility](RENAME_COMPATIBILITY.md) | Canonical names, retained aliases, and safe single-writer migration. |
 | [EasyTier design](design/EASYTIER_MONITORING.md) | Read-only collection, aggregate/display bounds, and uncertainty. |
 | [Hardware design](design/HARDWARE_MONITORING.md) | SMART, filesystems, resource diagnostics, and safe fallbacks. |
 | [UniFi design](design/UNIFI_MONITORING.md) | Catalog authority, runtime identity, WAN/port ownership, and read-only transport. |

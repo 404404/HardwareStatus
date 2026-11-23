@@ -9,12 +9,14 @@ and produces the single `/json/stats.json` projection; the browser renders
 host, hardware, Docker, Hermes, Lucky, EasyTier, UniFi, and component diagnostics
 from that projection.
 
-> **Naming compatibility:** the GitHub repository and public documentation are
-> named **HardwareStatus**. Existing runtime interfaces remain unchanged:
-> `serverstatus`, `HERMESSTATUS_*`, `/etc/hermesstatus`,
-> `/run/secrets/hermesstatus`, and the
-> `ghcr.io/404404/hermesstatus-server` / `hermesstatus-client` packages. They
-> are compatibility contracts for deployed installations, not strings to replace.
+> **Naming compatibility:** new deployments use the `hardwarestatus-server` /
+> `hardwarestatus-client` container names, `ghcr.io/404404/hardwarestatus-*`
+> packages, and `HARDWARESTATUS_*` configuration prefix. Existing
+> `HERMESSTATUS_*` Device v2 inputs, `/etc/hermesstatus`,
+> `/run/secrets/hermesstatus`, `/run/hermesstatus`, the `serverstatus`
+> executable alias, and old GHCR packages remain compatible. Paths are not
+> migrated automatically. For a Device v2 cutover, stop the old Client and
+> confirm zero writers before starting the canonical Client.
 
 ## Capabilities and boundaries
 
@@ -65,8 +67,8 @@ strict normalized projections.
 Production and qualification use GitHub-CI-built immutable image references:
 
 ```yaml
-image: ghcr.io/404404/hermesstatus-server@sha256:<approved-server-digest>
-image: ghcr.io/404404/hermesstatus-client@sha256:<client-digest-from-the-same-source-revision>
+image: ghcr.io/404404/hardwarestatus-server@sha256:<approved-server-digest>
+image: ghcr.io/404404/hardwarestatus-client@sha256:<client-digest-from-the-same-source-revision>
 ```
 
 Do not substitute `latest`, a broad version tag, or local `--build` for an
@@ -103,6 +105,7 @@ filesystems. See the [Device v2 guide](docs/DEVICE_CONFIGURATION.md) and
 
 - [Architecture](docs/ARCHITECTURE.md) · [Configuration](docs/CONFIGURATION.md) · [Deployment](docs/DEPLOYMENT.md)
 - [Security](docs/SECURITY.md) · [Operations](docs/OPERATIONS.md) · [Development](docs/DEVELOPMENT.md)
+- [Rename compatibility and migration](docs/RENAME_COMPATIBILITY.md)
 - [Device v2 configuration](docs/DEVICE_CONFIGURATION.md) · [Unified Client configuration](docs/UNIFIED_CLIENT_CONFIG.md)
 - [EasyTier](docs/design/EASYTIER_MONITORING.md) · [Hardware](docs/design/HARDWARE_MONITORING.md) · [UniFi](docs/design/UNIFI_MONITORING.md)
 

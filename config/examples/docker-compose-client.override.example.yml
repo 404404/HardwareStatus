@@ -1,5 +1,5 @@
 services:
-  serverstatus-client:
+  hardwarestatus-client:
     # Base Compose maps no host block device. This audited override grants only
     # the individually confirmed physical disks below.
     privileged: false
@@ -9,7 +9,7 @@ services:
       - ${SMART_DEVICE_A_HOST:-/dev/sda}:${SMART_DEVICE_A_CONTAINER:-/dev/sda}:r
       - ${SMART_DEVICE_B_HOST:-/dev/sdb}:${SMART_DEVICE_B_CONTAINER:-/dev/sdb}:r
     environment: !override
-      HERMESSTATUS_CONFIG_FILE: /etc/hermesstatus/client-v2.json
+      HARDWARESTATUS_CONFIG_FILE: /etc/hermesstatus/client-v2.json
       DSM_VERSION_FILE: "${DSM_VERSION_FILE:-/host/etc.defaults/VERSION}"
       # Client JSON is authoritative for the explicit multi-disk allowlist.
       # Keep the legacy single-disk environment variable empty so it cannot

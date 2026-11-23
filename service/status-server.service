@@ -1,5 +1,7 @@
 [Unit]
-Description=ServerStatus Go Server
+# Legacy unit for existing /usr/local/ServerStatus installations. New installs
+# should use hardwarestatus-server.service; this unit is intentionally retained.
+Description=Legacy ServerStatus Go Server
 After=network-online.target
 Wants=network-online.target
 

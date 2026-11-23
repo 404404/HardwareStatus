@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	version   = "2.5"
+	version   = "2.8"
 	commit    = "none"
 	buildTime = "unknown"
 )
@@ -51,9 +51,10 @@ func safeBuildValue(value string, maximum int) string {
 }
 
 func deploymentEnvironment() string {
-	switch os.Getenv("HERMESSTATUS_DEPLOYMENT_ENV") {
+	value := envAlias("HARDWARESTATUS_DEPLOYMENT_ENV", "HERMESSTATUS_DEPLOYMENT_ENV", "")
+	switch value {
 	case "production", "preview", "staging", "development":
-		return os.Getenv("HERMESSTATUS_DEPLOYMENT_ENV")
+		return value
 	default:
 		return "unknown"
 	}

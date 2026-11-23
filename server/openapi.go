@@ -8,7 +8,7 @@ func openAPISpec() map[string]any {
 			"get": publicOperation("health", "服务健康状态", objectResponse("Go 服务、Agent TCP 与配置状态")),
 		},
 		"/api/schema": map[string]any{
-			"get": publicOperation("schema", "ServerStatus API 简表", objectResponse("端点和集合描述")),
+			"get": publicOperation("schema", "HardwareStatus API 简表", objectResponse("端点和集合描述")),
 		},
 		"/api/openapi.json": map[string]any{
 			"get": publicOperation("openapi", "OpenAPI 3.1 文档", objectResponse("OpenAPI document")),
@@ -60,11 +60,11 @@ func openAPISpec() map[string]any {
 	return map[string]any{
 		"openapi": "3.1.0",
 		"info": map[string]any{
-			"title":       "ServerStatus HTTP API",
+			"title":       "HardwareStatus HTTP API",
 			"version":     version,
-			"description": "单进程 Go ServerStatus 的配置、运行状态和采集控制 API。",
+			"description": "单进程 HardwareStatus Server 的配置、运行状态和采集控制 API。",
 		},
-		"servers": []any{map[string]any{"url": "/", "description": "当前 ServerStatus 实例"}},
+		"servers": []any{map[string]any{"url": "/", "description": "当前 HardwareStatus 实例"}},
 		"paths":   paths,
 		"components": map[string]any{
 			"securitySchemes": map[string]any{

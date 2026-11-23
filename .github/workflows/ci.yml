@@ -93,8 +93,8 @@ jobs:
         id: provenance
         shell: bash
         run: |
-          echo "candidate_tag=2.5-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
-          echo "product_version=2.5" >> "$GITHUB_OUTPUT"
+          echo "candidate_tag=2.8-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          echo "product_version=2.8" >> "$GITHUB_OUTPUT"
           echo "vcs_ref=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
           echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
           echo "source=https://github.com/404404/HardwareStatus" >> "$GITHUB_OUTPUT"
@@ -104,7 +104,7 @@ jobs:
           file: Dockerfile.server
           push: false
           load: true
-          tags: hermesstatus-server:${{ steps.provenance.outputs.candidate_tag }}
+          tags: hardwarestatus-server:${{ steps.provenance.outputs.candidate_tag }}
           build-args: |
             VERSION=${{ steps.provenance.outputs.product_version }}
             VCS_REF=${{ steps.provenance.outputs.vcs_ref }}
@@ -112,14 +112,14 @@ jobs:
             SOURCE_URL=${{ steps.provenance.outputs.source }}
           cache-from: type=gha,scope=server
           cache-to: type=gha,mode=max,scope=server
-      - run: docker image inspect hermesstatus-server:${{ steps.provenance.outputs.candidate_tag }} --format '{{json .Config.Entrypoint}}' | grep serverstatus
+      - run: docker image inspect hardwarestatus-server:${{ steps.provenance.outputs.candidate_tag }} --format '{{json .Config.Entrypoint}}' | grep hardwarestatus-server
       - uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.client
           push: false
           load: true
-          tags: hermesstatus-client:${{ steps.provenance.outputs.candidate_tag }}
+          tags: hardwarestatus-client:${{ steps.provenance.outputs.candidate_tag }}
           build-args: |
             VERSION=${{ steps.provenance.outputs.product_version }}
             VCS_REF=${{ steps.provenance.outputs.vcs_ref }}
@@ -127,12 +127,12 @@ jobs:
             SOURCE_URL=${{ steps.provenance.outputs.source }}
           cache-from: type=gha,scope=client
           cache-to: type=gha,mode=max,scope=client
-      - run: docker image inspect hermesstatus-client:${{ steps.provenance.outputs.candidate_tag }} --format '{{json .Config.Entrypoint}}' | grep entrypoint.sh
+      - run: docker image inspect hardwarestatus-client:${{ steps.provenance.outputs.candidate_tag }} --format '{{json .Config.Entrypoint}}' | grep entrypoint.sh
       - name: Validate image provenance
         run: |
           python3 scripts/validate_image_provenance.py \
-            --server-image hermesstatus-server:${{ steps.provenance.outputs.candidate_tag }} \
-            --client-image hermesstatus-client:${{ steps.provenance.outputs.candidate_tag }} \
+            --server-image hardwarestatus-server:${{ steps.provenance.outputs.candidate_tag }} \
+            --client-image hardwarestatus-client:${{ steps.provenance.outputs.candidate_tag }} \
             --candidate-tag "${{ steps.provenance.outputs.candidate_tag }}" \
             --version "${{ steps.provenance.outputs.product_version }}" \
             --revision "${{ steps.provenance.outputs.vcs_ref }}" \

@@ -1,6 +1,6 @@
 FROM golang:1.25-alpine AS builder
 
-ARG VERSION=2.5
+ARG VERSION=2.8
 ARG VCS_REF=unknown
 ARG BUILD_DATE=unknown
 ARG SOURCE_URL=https://github.com/404404/HardwareStatus
@@ -16,11 +16,11 @@ COPY server/contracts ./contracts
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -trimpath \
     -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${VCS_REF} -X main.buildTime=${BUILD_DATE}" \
-    -o /out/serverstatus .
+    -o /out/hardwarestatus-server .
 
 FROM alpine:3.22
 
-ARG VERSION=2.5
+ARG VERSION=2.8
 ARG VCS_REF=unknown
 ARG BUILD_DATE=unknown
 ARG SOURCE_URL=https://github.com/404404/HardwareStatus
@@ -33,25 +33,22 @@ LABEL maintainer="cppla <https://cpp.la>" \
     org.opencontainers.image.created="${BUILD_DATE}" \
     org.opencontainers.image.source="${SOURCE_URL}" \
     org.opencontainers.image.licenses="MIT" \
+    io.hardwarestatus.component="server" \
     io.hermesstatus.component="server"
 
 RUN apk add --no-cache ca-certificates tzdata \
     && mkdir -p /app/config /app/data /app/web
 
-COPY --from=builder /out/serverstatus /usr/local/bin/serverstatus
+COPY --from=builder /out/hardwarestatus-server /usr/local/bin/hardwarestatus-server
+RUN ln -s /usr/local/bin/hardwarestatus-server /usr/local/bin/serverstatus
 COPY server/config.json /app/config/config.json
 COPY web /app/web/
 
-ENV TZ=Asia/Shanghai \
-    CONFIG_PATH=/app/config/config.json \
-    STATS_PATH=/app/data/stats.json \
-    WEB_DIR=/app/web \
-    HTTP_ADDR=:80 \
-    AGENT_ADDR=:35601
+ENV TZ=Asia/Shanghai
 
 EXPOSE 80 35601
 
 HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
     CMD wget -q -O /dev/null http://127.0.0.1/api/health || exit 1
 
-ENTRYPOINT ["/usr/local/bin/serverstatus"]
+ENTRYPOINT ["/usr/local/bin/hardwarestatus-server"]

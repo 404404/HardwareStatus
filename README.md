@@ -7,11 +7,12 @@ Client 在主机边界采集经过显式授权的观测；Go Server 严格校验
 唯一的 `/json/stats.json` 投影；浏览器从该投影展示主机、硬件、Docker、Hermes、
 Lucky、EasyTier、UniFi 与组件诊断。
 
-> **命名兼容性**：GitHub 仓库与公开文档名称为 **HardwareStatus**。为了不破坏
-> 已部署环境，当前二进制 `serverstatus`、`HERMESSTATUS_*` 环境变量、
-> `/etc/hermesstatus` 与 `/run/secrets/hermesstatus` 路径，以及
-> `ghcr.io/404404/hermesstatus-server` / `hermesstatus-client` 镜像包名保持不变。
-> 这些是兼容接口，不是应替换成新字符串的配置项。
+> **命名兼容性**：新部署统一使用 `hardwarestatus-server` /
+> `hardwarestatus-client` 容器、`ghcr.io/404404/hardwarestatus-*` 镜像和
+> `HARDWARESTATUS_*` 配置前缀。既有 `HERMESSTATUS_*` Device v2 输入、
+> `/etc/hermesstatus`、`/run/secrets/hermesstatus`、`/run/hermesstatus`、
+> `serverstatus` 可执行别名及旧 GHCR 包名继续兼容。旧路径不会被自动迁移；
+> 同一 Device v2 身份切换时必须先停旧 Client 并确认 writer 数为零。
 
 ## 能力与边界
 
@@ -53,8 +54,8 @@ Server 不读取 Docker socket、Client 原始配置、凭据、EasyTier 原始�
 生产与资格验证使用 GitHub CI 构建的不可变镜像引用：
 
 ```yaml
-image: ghcr.io/404404/hermesstatus-server@sha256:<已批准的 server digest>
-image: ghcr.io/404404/hermesstatus-client@sha256:<同一源码 revision 的 client digest>
+image: ghcr.io/404404/hardwarestatus-server@sha256:<已批准的 server digest>
+image: ghcr.io/404404/hardwarestatus-client@sha256:<同一源码 revision 的 client digest>
 ```
 
 不要以 `latest`、宽泛版本标签或本地 `--build` 替代已经批准的 digest。部署前核验：
@@ -88,6 +89,7 @@ devices: [/dev/sda:/dev/sda:r]
 
 - [架构](docs/zh-CN/ARCHITECTURE.md) · [配置](docs/zh-CN/CONFIGURATION.md) · [部署](docs/zh-CN/DEPLOYMENT.md)
 - [安全](docs/zh-CN/SECURITY.md) · [运维](docs/zh-CN/OPERATIONS.md) · [开发](docs/zh-CN/DEVELOPMENT.md)
+- [命名兼容与迁移](docs/zh-CN/RENAME_COMPATIBILITY.md)
 - [Device v2 配置](docs/zh-CN/DEVICE_CONFIGURATION.md) · [统一 Client 配置](docs/UNIFIED_CLIENT_CONFIG.md)
 - [EasyTier](docs/zh-CN/EASYTIER_MONITORING.md) · [硬件](docs/zh-CN/HARDWARE_MONITORING.md) · [UniFi](docs/zh-CN/UNIFI_MONITORING.md)
 
