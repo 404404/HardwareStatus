@@ -85,7 +85,7 @@ class CatalogAcquisitionTests(unittest.TestCase):
         provenance = json.loads(
             (ROOT / "clients/unifi_catalog/catalog-provenance.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(lock["revision"], "6a434bb795ed8a5e1bb329e7d470a86c49be22ee")
+        self.assertEqual(lock["revision"], "3e090d8a18f11a76085914bd8fa44f1c4a9b039b")
         self.assertEqual(lock["catalog_sha256"], "ba59930b18e88df78bef35cc51ee2ba897169fb8cdcae20465aa69878c6664fa")
         self.assertEqual(lock["schema_version"], 2)
         self.assertEqual(provenance, {
