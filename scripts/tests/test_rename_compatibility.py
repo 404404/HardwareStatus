@@ -23,15 +23,23 @@ class RenameCompatibilityTests(unittest.TestCase):
         self.assertIn("hardwarestatus-client:", client)
         self.assertIn("container_name: hardwarestatus-client", client)
         self.assertIn("ghcr.io/404404/hardwarestatus-client:local", client)
+        self.assertIn("/var/lib/hardwarestatus-client", client)
         self.assertNotIn("serverstatus-client:", client)
 
     def test_existing_paths_and_protocol_aliases_are_retained(self):
         client = self.read("deploy/compose/client-synology.example.yml")
         self.assertIn("HARDWARESTATUS_CONFIG_FILE:", client)
+        self.assertIn("/run/secrets/hardwarestatus/client-config.json", client)
+        self.assertIn("/run/secrets/hardwarestatus-device-token", client)
+        self.assertIn("/run/hardwarestatus:size=", client)
+        self.assertIn("/var/lib/hardwarestatus-client", client)
+        # Existing host mounts and container aliases remain available for old configs.
         self.assertIn("/run/secrets/hermesstatus/client-config.json", client)
         self.assertIn("/run/secrets/hermesstatus-device-token", client)
         self.assertIn("/run/hermesstatus:size=", client)
         self.assertIn("/var/lib/serverstatus-client", client)
+        self.assertIn("/volume1/docker/status/config/client-config.json:/run/secrets/hardwarestatus/client-config.json:ro", client)
+        self.assertIn("/volume1/docker/status/config/client-config.json:/run/secrets/hermesstatus/client-config.json:ro", client)
         contracts = self.read("clients/multi_device_contracts.py")
         self.assertIn('"HERMESSTATUS_SERVER_URL"', contracts)
         self.assertIn('key.replace("HERMESSTATUS_", "HARDWARESTATUS_", 1)', contracts)
@@ -58,6 +66,7 @@ class RenameCompatibilityTests(unittest.TestCase):
         self.assertIn("cancel-in-progress: false", workflow)
         self.assertIn("unable to prove candidate tag is absent; refusing publication", workflow)
         self.assertNotIn("tags: ghcr.io/${{ github.repository_owner }}/hermesstatus-", workflow)
+        self.assertNotIn("io.hermesstatus.", workflow)
 
     def test_cutover_document_preserves_single_writer_and_state_rollback(self):
         document = self.read("docs/RENAME_COMPATIBILITY.md")

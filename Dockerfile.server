@@ -39,11 +39,7 @@ LABEL maintainer="cppla <https://cpp.la>" \
     io.hardwarestatus.component="server" \
     io.hardwarestatus.unifi.catalog.revision="${CATALOG_REVISION}" \
     io.hardwarestatus.unifi.catalog.schema_version="${CATALOG_SCHEMA_VERSION}" \
-    io.hardwarestatus.unifi.catalog.sha256="${CATALOG_SHA256}" \
-    io.hermesstatus.component="server" \
-    io.hermesstatus.unifi.catalog.revision="${CATALOG_REVISION}" \
-    io.hermesstatus.unifi.catalog.schema_version="${CATALOG_SCHEMA_VERSION}" \
-    io.hermesstatus.unifi.catalog.sha256="${CATALOG_SHA256}"
+    io.hardwarestatus.unifi.catalog.sha256="${CATALOG_SHA256}"
 
 RUN apk add --no-cache ca-certificates tzdata \
     && mkdir -p /app/config /app/data /app/web

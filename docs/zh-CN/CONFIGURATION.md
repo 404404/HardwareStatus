@@ -23,16 +23,17 @@ Device token、Server admin token 或 CA 私钥写入仓库、环境变量、命
 
 ## 统一 Client 配置
 
-新部署使用由 `HARDWARESTATUS_CONFIG_FILE`（旧 alias `HERMESSTATUS_CONFIG_FILE`）选择的严格 JSON，惯例只读挂载到
-`/run/secrets/hermesstatus/client-config.json`。Device v2 token 单独只读挂载到
-`/run/secrets/hermesstatus-device-token`。
+新部署使用由 `HARDWARESTATUS_CONFIG_FILE`（旧 alias `HERMESSTATUS_CONFIG_FILE`）选择的严格 JSON，
+惯例只读挂载到 `/run/secrets/hardwarestatus/client-config.json`。Device v2 token 单独只读挂载到
+`/run/secrets/hardwarestatus-device-token`。部署示例保留旧容器内凭据目标，供既有配置使用；
+宿主机凭据源路径保持不变。
 
 文档使用 `schema_version: 1`，并显式声明 `server`、`device`、`collection` 与
 `collectors`。未知字段、未知采集 source、任意命令字段和任意 probe path 都会被拒绝。Legacy
 `client-v2.json` 仅用于有计划的回滚，不应与 unified 配置混用。
 
 使用 root-owned、`0600`（或更严格）常规文件和只读挂载。采集器秘密只在 Client 私有
-`/run/hermesstatus` tmpfs 中短暂 materialize，不得出现在环境变量、参数、遥测、日志、fixture
+`/run/hardwarestatus` tmpfs 中短暂 materialize，不得出现在环境变量、参数、遥测、日志、fixture
 或 UI。
 
 ## 硬件与 Docker

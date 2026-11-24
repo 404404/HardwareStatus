@@ -5,12 +5,21 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 CLIENT_DIR = Path(__file__).resolve().parent
 if str(CLIENT_DIR) not in sys.path:
     sys.path.insert(0, str(CLIENT_DIR))
 
-from client_config_v1 import materialize_unified_collectors
+from client_config_v1 import (
+    CANONICAL_DEVICE_TOKEN_PATH,
+    CANONICAL_PRIVATE_RUNTIME_DIR,
+    LEGACY_DEVICE_TOKEN_PATH,
+    LEGACY_PRIVATE_RUNTIME_DIR,
+    default_device_token_path,
+    default_private_runtime_dir,
+    materialize_unified_collectors,
+)
 from multi_device_contracts import ClientContractError, parse_config_json, resolve_client_config
 
 
@@ -52,10 +61,11 @@ def document():
 
 class UnifiedClientConfigTests(unittest.TestCase):
     def test_strict_schema_and_mapping(self):
-        config = resolve_client_config(file_values=parse_config_json(json.dumps(document())))
+        with patch("client_config_v1.os.path.isfile", return_value=False):
+            config = resolve_client_config(file_values=parse_config_json(json.dumps(document())))
         self.assertEqual(config.device_id, "gk50")
         self.assertEqual(config.collection_interval_seconds, 30)
-        self.assertEqual(config.token_file, "/run/secrets/hermesstatus-device-token")
+        self.assertEqual(config.token_file, CANONICAL_DEVICE_TOKEN_PATH)
         self.assertEqual(config.filesystem_probes[0].probe_path, "/home/hermes")
         self.assertTrue(config.unified_collectors["lucky"]["enabled"])
 
@@ -93,6 +103,34 @@ class UnifiedClientConfigTests(unittest.TestCase):
             self.assertFalse(Path(token_path).is_symlink()
             )
         self.assertFalse(Path(token_path).exists())
+
+    def test_private_runtime_path_prefers_new_default_and_falls_back_to_old_mount(self):
+        self.assertEqual(
+            default_private_runtime_dir(lambda path: path == CANONICAL_PRIVATE_RUNTIME_DIR),
+            CANONICAL_PRIVATE_RUNTIME_DIR,
+        )
+        self.assertEqual(
+            default_private_runtime_dir(lambda path: path == LEGACY_PRIVATE_RUNTIME_DIR),
+            LEGACY_PRIVATE_RUNTIME_DIR,
+        )
+        self.assertEqual(default_private_runtime_dir(lambda _path: False), CANONICAL_PRIVATE_RUNTIME_DIR)
+
+    def test_device_token_default_supports_old_compose_mounts_during_upgrade(self):
+        self.assertEqual(default_device_token_path(lambda _path: False), CANONICAL_DEVICE_TOKEN_PATH)
+        self.assertEqual(
+            default_device_token_path(lambda path: path == LEGACY_DEVICE_TOKEN_PATH),
+            LEGACY_DEVICE_TOKEN_PATH,
+        )
+        self.assertEqual(
+            default_device_token_path(lambda path: path == CANONICAL_DEVICE_TOKEN_PATH),
+            CANONICAL_DEVICE_TOKEN_PATH,
+        )
+        with patch(
+            "client_config_v1.os.path.isfile",
+            side_effect=lambda path: path == LEGACY_DEVICE_TOKEN_PATH,
+        ):
+            config = resolve_client_config(file_values=parse_config_json(json.dumps(document())))
+        self.assertEqual(config.token_file, LEGACY_DEVICE_TOKEN_PATH)
 
     def test_source_and_path_allowlist(self):
         value = document()

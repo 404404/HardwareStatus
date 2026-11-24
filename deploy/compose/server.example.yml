@@ -16,10 +16,10 @@ services:
     ports:
       - "21443:80"
     volumes:
-      - ${SERVER_CONFIG_HOST:-./server-config.json}:/etc/hermesstatus/config.json:ro
+      - ${SERVER_CONFIG_HOST:-./server-config.json}:/etc/hardwarestatus/config.json:ro
       - ${SERVER_STATE_HOST:-./server-state}:/app/data
     environment:
-      HARDWARESTATUS_CONFIG_PATH: /etc/hermesstatus/config.json
+      HARDWARESTATUS_CONFIG_PATH: /etc/hardwarestatus/config.json
       HARDWARESTATUS_ADMIN_TOKEN: "${HARDWARESTATUS_ADMIN_TOKEN-${ADMIN_TOKEN-}}"
       ADMIN_TOKEN: "${ADMIN_TOKEN-${HARDWARESTATUS_ADMIN_TOKEN-}}"
       HARDWARESTATUS_HTTP_ADDR: "${HARDWARESTATUS_HTTP_ADDR-${HTTP_ADDR-:80}}"

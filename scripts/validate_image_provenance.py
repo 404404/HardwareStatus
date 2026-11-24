@@ -24,6 +24,8 @@ PRODUCT_VERSION_PATTERN = re.compile(r"^2\.[0-9]+$")
 CANDIDATE_TAG_PATTERN = re.compile(r"^(?P<version>2\.[0-9]+)-(?P<revision>[0-9a-f]{12})$")
 COMPONENT_LABEL = "io.hardwarestatus.component"
 LEGACY_COMPONENT_LABEL = "io.hermesstatus.component"
+LEGACY_IDENTITY_LABEL_PREFIX = "io.hermesstatus."
+LEGACY_BUILD_ENV_PREFIXES = ("HERMESSTATUS_CLIENT_", "HERMESSTATUS_UNIFI_CATALOG_")
 SECRET_PATTERN = re.compile(
     r"(?i)(authorization\s*:|bearer\s+|api[_-]?key|password|private[_-]?key|token[_-]?secret)"
 )
@@ -76,7 +78,26 @@ def environment_values(config: dict) -> dict:
     return values
 
 
+def _requires_hardwarestatus_only(version: str) -> bool:
+    try:
+        major, minor = (int(part) for part in version.split(".", 1))
+    except (AttributeError, TypeError, ValueError):
+        return False
+    return major > 2 or (major == 2 and minor >= 8)
+
+
+def validate_hardwarestatus_only_identity(config: dict) -> None:
+    labels = config.get("Labels") or {}
+    if any(isinstance(key, str) and key.startswith(LEGACY_IDENTITY_LABEL_PREFIX) for key in labels):
+        raise ValidationError("new image contains a legacy HermesStatus OCI identity label")
+    values = environment_values(config)
+    if any(key.startswith(LEGACY_BUILD_ENV_PREFIXES) for key in values):
+        raise ValidationError("new image contains legacy HermesStatus build metadata")
+
+
 def validate_client_runtime(config: dict, *, version: str, revision: str, created: str) -> None:
+    if _requires_hardwarestatus_only(version):
+        validate_hardwarestatus_only_identity(config)
     values = environment_values(config)
     expected = {
         "HARDWARESTATUS_CLIENT_VERSION": version,
@@ -95,7 +116,19 @@ def validate_client_runtime(config: dict, *, version: str, revision: str, create
             raise ValidationError("legacy client runtime alias conflicts with canonical metadata")
 
 def validate_catalog_provenance(config: dict, *, revision: str, schema_version: int, sha256: str) -> None:
-    validate_catalog_labels(config, revision=revision, schema_version=schema_version, sha256=sha256)
+    labels = config.get("Labels") or {}
+    hardwarestatus_only = _requires_hardwarestatus_only(
+        str(labels.get("org.opencontainers.image.version", ""))
+    )
+    validate_catalog_labels(
+        config,
+        revision=revision,
+        schema_version=schema_version,
+        sha256=sha256,
+        hardwarestatus_only=hardwarestatus_only,
+    )
+    if hardwarestatus_only:
+        validate_hardwarestatus_only_identity(config)
     values = environment_values(config)
     expected_environment = {
         "HARDWARESTATUS_UNIFI_CATALOG_REVISION": revision,
@@ -114,8 +147,19 @@ def validate_catalog_provenance(config: dict, *, revision: str, schema_version: 
             raise ValidationError("legacy Catalog runtime alias conflicts with canonical metadata")
 
 
-def validate_catalog_labels(config: dict, *, revision: str, schema_version: int, sha256: str) -> None:
+def validate_catalog_labels(
+    config: dict,
+    *,
+    revision: str,
+    schema_version: int,
+    sha256: str,
+    hardwarestatus_only: bool = False,
+) -> None:
     labels = config.get("Labels") or {}
+    if hardwarestatus_only and any(
+        isinstance(key, str) and key.startswith(LEGACY_IDENTITY_LABEL_PREFIX) for key in labels
+    ):
+        raise ValidationError("new image contains a legacy HermesStatus Catalog label")
     expected_labels = {
         "io.hardwarestatus.unifi.catalog.revision": revision,
         "io.hardwarestatus.unifi.catalog.schema_version": str(schema_version),
@@ -189,6 +233,8 @@ def validate_inspect(
 ) -> dict:
     config = inspect.get("Config") or {}
     labels = config.get("Labels") or {}
+    if _requires_hardwarestatus_only(version):
+        validate_hardwarestatus_only_identity(config)
     missing = [key for key in REQUIRED_LABELS if not labels.get(key)]
     if missing:
         raise ValidationError("missing required OCI labels: " + ", ".join(missing))

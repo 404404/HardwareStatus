@@ -31,15 +31,11 @@ def valid_inspect():
                 "org.opencontainers.image.source": SOURCE,
                 "org.opencontainers.image.licenses": "MIT",
                 "io.hardwarestatus.component": "server",
-                "io.hermesstatus.component": "server",
             },
             "Env": [
                 "HARDWARESTATUS_CLIENT_VERSION=" + PRODUCT_VERSION,
                 "HARDWARESTATUS_CLIENT_REVISION=" + REVISION,
                 "HARDWARESTATUS_CLIENT_BUILD_TIME=" + CREATED,
-                "HERMESSTATUS_CLIENT_VERSION=" + PRODUCT_VERSION,
-                "HERMESSTATUS_CLIENT_REVISION=" + REVISION,
-                "HERMESSTATUS_CLIENT_BUILD_TIME=" + CREATED,
             ],
         },
     }
@@ -118,27 +114,36 @@ class ImageProvenanceTests(unittest.TestCase):
             pathlib.Path(__file__).resolve().parents[2] / "Dockerfile.client"
         ).read_text(encoding="utf-8")
         self.assertIn('io.hardwarestatus.component="client"', dockerfile)
-        self.assertIn('io.hermesstatus.component="client"', dockerfile)
+        self.assertNotIn("io.hermesstatus.", dockerfile)
+        for key in ("CLIENT_VERSION", "CLIENT_REVISION", "CLIENT_BUILD_TIME", "CLIENT_PROTOCOL", "UNIFI_CATALOG_REVISION", "UNIFI_CATALOG_SCHEMA_VERSION", "UNIFI_CATALOG_SHA256"):
+            self.assertIn("HARDWARESTATUS_" + key + "=", dockerfile)
+            self.assertNotIn("HERMESSTATUS_" + key + "=", dockerfile)
+        self.assertIn("HERMES_EXPORT_ENABLED=true", dockerfile)
 
     def test_server_dockerfile_sets_server_component_metadata(self):
         dockerfile = (
             pathlib.Path(__file__).resolve().parents[2] / "Dockerfile.server"
         ).read_text(encoding="utf-8")
         self.assertIn('io.hardwarestatus.component="server"', dockerfile)
-        self.assertIn('io.hermesstatus.component="server"', dockerfile)
         self.assertIn('io.hardwarestatus.unifi.catalog.sha256="${CATALOG_SHA256}"', dockerfile)
-        self.assertIn('io.hermesstatus.unifi.catalog.sha256="${CATALOG_SHA256}"', dockerfile)
+        self.assertNotIn("io.hermesstatus.", dockerfile)
 
     def test_server_and_client_catalog_label_validation_accepts_v2(self):
         config = copy.deepcopy(valid_inspect()["Config"])
         labels = config["Labels"]
         revision = "b" * 40
         digest = "c" * 64
-        for namespace in ("io.hardwarestatus", "io.hermesstatus"):
-            labels[namespace + ".unifi.catalog.revision"] = revision
-            labels[namespace + ".unifi.catalog.schema_version"] = "2"
-            labels[namespace + ".unifi.catalog.sha256"] = digest
+        namespace = "io.hardwarestatus"
+        labels[namespace + ".unifi.catalog.revision"] = revision
+        labels[namespace + ".unifi.catalog.schema_version"] = "2"
+        labels[namespace + ".unifi.catalog.sha256"] = digest
         MODULE.validate_catalog_labels(config, revision=revision, schema_version=2, sha256=digest)
+        legacy = copy.deepcopy(config)
+        legacy["Labels"]["io.hermesstatus.unifi.catalog.sha256"] = digest
+        with self.assertRaises(MODULE.ValidationError):
+            MODULE.validate_catalog_labels(
+                legacy, revision=revision, schema_version=2, sha256=digest, hardwarestatus_only=True
+            )
         with self.assertRaises(MODULE.ValidationError):
             MODULE.validate_catalog_labels(config, revision=revision, schema_version=3, sha256=digest)
 
@@ -146,17 +151,33 @@ class ImageProvenanceTests(unittest.TestCase):
         config = copy.deepcopy(valid_inspect()["Config"])
         revision = "b" * 40
         digest = "c" * 64
-        for namespace in ("io.hardwarestatus", "io.hermesstatus"):
-            config["Labels"][namespace + ".unifi.catalog.revision"] = revision
-            config["Labels"][namespace + ".unifi.catalog.schema_version"] = "2"
-            config["Labels"][namespace + ".unifi.catalog.sha256"] = digest
-        for prefix in ("HARDWARESTATUS", "HERMESSTATUS"):
-            config["Env"].extend([
-                prefix + "_UNIFI_CATALOG_REVISION=" + revision,
-                prefix + "_UNIFI_CATALOG_SCHEMA_VERSION=2",
-                prefix + "_UNIFI_CATALOG_SHA256=" + digest,
-            ])
+        for suffix, value in (("revision", revision), ("schema_version", "2"), ("sha256", digest)):
+            config["Labels"]["io.hardwarestatus.unifi.catalog." + suffix] = value
+        config["Env"].extend([
+            "HARDWARESTATUS_UNIFI_CATALOG_REVISION=" + revision,
+            "HARDWARESTATUS_UNIFI_CATALOG_SCHEMA_VERSION=2",
+            "HARDWARESTATUS_UNIFI_CATALOG_SHA256=" + digest,
+        ])
         MODULE.validate_catalog_provenance(config, revision=revision, schema_version=2, sha256=digest)
+
+    def test_2_8_rejects_legacy_image_identity_but_2_7_compat_remains(self):
+        payload = valid_inspect()
+        payload["Config"]["Labels"]["io.hermesstatus.component"] = "server"
+        with self.assertRaisesRegex(MODULE.ValidationError, "legacy HermesStatus"):
+            validate(payload)
+
+        payload = valid_inspect()
+        payload["Config"]["Labels"]["org.opencontainers.image.version"] = "2.7"
+        payload["Config"]["Labels"]["io.hermesstatus.component"] = "server"
+        MODULE.validate_inspect(
+            payload,
+            expected_title="HardwareStatus Server",
+            expected_entrypoint=["/usr/local/bin/hardwarestatus-server"],
+            version="2.7",
+            revision=REVISION,
+            created=CREATED,
+            source=SOURCE,
+        )
 
     def test_valid_metadata(self):
         result = validate(valid_inspect())

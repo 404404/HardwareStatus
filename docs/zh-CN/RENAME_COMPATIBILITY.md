@@ -9,11 +9,14 @@
 
 以下名称在迁移期仍受支持，但不再作为新资源的默认名称：
 
-- Device v2 的 `HERMESSTATUS_*` 配置、Client 构建元数据、Server Device endpoint
-  与部署元数据。新旧前缀同时设置时值必须相同；冲突时 fail closed。
+- Device v2 的 `HERMESSTATUS_*` 配置输入、旧 Client 构建元数据输入、Server
+  Device endpoint 设置与部署别名。新旧前缀同时设置时值必须相同；冲突时
+  fail closed。新 Client 镜像只输出 `HARDWARESTATUS_*` 构建元数据与
+  `io.hardwarestatus.*` 产品标签。
 - `/etc/hermesstatus`、`/run/secrets/hermesstatus`、
-  `/run/secrets/hermesstatus-device-token`、`/run/hermesstatus`、
-  `/var/lib/serverstatus-client` 及已有宿主机目录。不会隐式重命名或复制数据路径。
+  `/run/secrets/hermesstatus-device-token`、`/run/hermesstatus` 等旧容器内路径仍可用。
+  新模板使用 HardwareStatus 路径，并保留指向同一宿主机文件的只读旧凭据目标别名。
+  既有宿主机目录与 `/var/lib/serverstatus-client` 状态数据保持可用；不会移动或删除宿主机数据。
 - `/usr/local/bin/serverstatus` 保留为指向
   `/usr/local/bin/hardwarestatus-server` 的调用符号链接；两个入口的 `--version`
   均输出 canonical `hardwarestatus-server` 元数据。
@@ -26,9 +29,12 @@
 - 既有 `service/status-*.service` 与 `status.sh` 作为旧 ServerStatus 安装资料保留；
   新 systemd unit 示例使用 `hardwarestatus-*` 命名。
 
-2.5、2.6、2.7 的历史 workflow 保持原样，避免改写已发布 provenance。新的候选发布流程
-单独定义，使用 canonical GHCR package、精确源码 SHA 和不可变候选 tag。发布前仍须核实
-GHCR package 的 provision 与权限。
+2.5、2.6、2.7 已发布镜像与 stable tag 保持不变。候选发布 bootstrap 收紧 package 写权限，
+并阻止 2.7 pull request 发布。新的 2.8 候选镜像仅使用 canonical package、精确源码 SHA
+及 HardwareStatus 身份。意外生成的
+`ghcr.io/404404/hermesstatus-server:2.7-83934eb3f692` 与
+`ghcr.io/404404/hermesstatus-client:2.7-83934eb3f692` 仅登记待清理审核，本次不删除。
+发布 2.8 前仍须核实 GHCR package provisioning 与权限。
 
 ## 安全切换流程
 

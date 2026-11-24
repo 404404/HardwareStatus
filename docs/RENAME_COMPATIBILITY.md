@@ -11,13 +11,17 @@ the `HARDWARESTATUS_*` environment prefix.
 
 The following are supported compatibility interfaces, not canonical names:
 
-- `HERMESSTATUS_*` Device v2 settings, client build metadata, server device
-  endpoint settings, and deployment metadata. Where a canonical and legacy
-  spelling are both supplied, values must match; conflicts fail closed.
-- `/etc/hermesstatus`, `/run/secrets/hermesstatus`,
-  `/run/secrets/hermesstatus-device-token`, `/run/hermesstatus`,
-  `/var/lib/serverstatus-client`, and existing host directories. No path is
-  renamed or copied implicitly.
+- `HERMESSTATUS_*` Device v2 configuration inputs, legacy client build-metadata
+  inputs, server device endpoint settings, and deployment aliases. Where
+  canonical and legacy spellings are both supplied, values must match;
+  conflicts fail closed. New Client images emit only `HARDWARESTATUS_*` build
+  metadata and `io.hardwarestatus.*` product labels.
+- Legacy in-container paths such as `/etc/hermesstatus`,
+  `/run/secrets/hermesstatus`, `/run/secrets/hermesstatus-device-token`, and
+  `/run/hermesstatus` remain accepted. New templates use HardwareStatus paths
+  and retain read-only legacy credential aliases to the same unchanged host
+  files. Existing host directories and `/var/lib/serverstatus-client` data
+  remain available; no host data is moved or deleted.
 - `/usr/local/bin/serverstatus`, retained as an invocation symlink to the
   canonical `/usr/local/bin/hardwarestatus-server`. Both invocation paths emit
   the canonical `hardwarestatus-server` version metadata.
@@ -32,11 +36,14 @@ The following are supported compatibility interfaces, not canonical names:
   legacy ServerStatus installation artifacts. New systemd unit examples use
   `hardwarestatus-*` naming.
 
-Historical workflows for 2.5, 2.6, and 2.7 remain unchanged so their published
-provenance is not rewritten. New candidate publication is defined separately
-and uses the canonical package namespace, an exact source SHA, and immutable
-candidate tags. Package provisioning/permissions must be confirmed in GHCR
-before a publication can succeed.
+Existing 2.5, 2.6, and 2.7 published images and stable tags remain untouched.
+The candidate workflow bootstrap tightens package-write scope and prevents
+2.7 pull-request runs from publishing. New 2.8 candidate publication uses only
+the canonical package namespace, exact source SHA, and HardwareStatus identity.
+The two unintended tags `ghcr.io/404404/hermesstatus-server:2.7-83934eb3f692`
+and `ghcr.io/404404/hermesstatus-client:2.7-83934eb3f692` are recorded for
+separate cleanup review; this change does not delete them. GHCR package
+provisioning/permissions must be verified before a 2.8 publication.
 
 ## Safe deployment cutover
 

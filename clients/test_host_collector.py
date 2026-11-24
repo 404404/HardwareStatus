@@ -19,6 +19,8 @@ from host_collector import (
     atomic_write_json,
     build_block_device_graph,
     collect_client_build,
+    _status_dir_from_environment,
+    _hermes_status_file_from_environment,
     collect_cpu_details,
     collect_cpu_model,
     collect_cpu_usage,
@@ -1218,6 +1220,25 @@ class HostCollectorTests(unittest.TestCase):
                 "HARDWARESTATUS_CLIENT_PROTOCOL": "device_v2",
             })
         )
+
+    def test_new_status_defaults_reuse_legacy_mount_if_only_old_path_exists(self):
+        legacy = "/var/lib/serverstatus-client"
+        with patch("host_collector.os.path.isdir", side_effect=lambda path: path == legacy):
+            self.assertEqual(
+                _status_dir_from_environment({"CLIENT_STATUS_DIR": "/var/lib/hardwarestatus-client"}),
+                legacy,
+            )
+            self.assertEqual(
+                _hermes_status_file_from_environment({
+                    "HERMES_STATUS_FILE": "/var/lib/hardwarestatus-client/hermes/hermes.json"
+                }),
+                legacy + "/hermes/hermes.json",
+            )
+        with patch("host_collector.os.path.isdir", return_value=True):
+            self.assertEqual(
+                _status_dir_from_environment({"CLIENT_STATUS_DIR": "/var/lib/hardwarestatus-client"}),
+                "/var/lib/hardwarestatus-client",
+            )
 
     def test_extension_payload_exposes_client_build_at_the_root(self):
         build = {"version": "2.5", "revision": "abcdef012345", "protocol": "device_v2", "build_time": None}

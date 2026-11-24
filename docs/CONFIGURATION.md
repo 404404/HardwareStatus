@@ -30,9 +30,12 @@ document.
 ## Unified Client configuration
 
 New deployments use the strict JSON document selected by
-`HARDWARESTATUS_CONFIG_FILE` (legacy alias `HERMESSTATUS_CONFIG_FILE`), conventionally mounted read-only at
-`/run/secrets/hermesstatus/client-config.json`. The Device v2 token stays in a
-separate read-only file at `/run/secrets/hermesstatus-device-token`.
+`HARDWARESTATUS_CONFIG_FILE` (legacy alias `HERMESSTATUS_CONFIG_FILE`),
+conventionally mounted read-only at `/run/secrets/hardwarestatus/client-config.json`.
+The Device v2 token stays in a separate read-only file at
+`/run/secrets/hardwarestatus-device-token`. Deployment examples retain old
+container-internal credential targets for existing configuration documents;
+host-side credential source paths are unchanged.
 
 The document has `schema_version: 1` and explicit `server`, `device`,
 `collection`, and `collectors` sections. Unknown fields, unknown collector
@@ -42,7 +45,7 @@ do not mix its authority with a unified configuration in one Client.
 
 Use root-owned regular files with mode `0600` (or a stricter documented mode)
 and read-only mounts. Collector secrets materialize only into the Client's
-private `/run/hermesstatus` tmpfs; they never belong in environment values,
+private `/run/hardwarestatus` tmpfs; they never belong in environment values,
 arguments, telemetry, logs, fixtures, or UI text.
 
 ## Hardware and Docker

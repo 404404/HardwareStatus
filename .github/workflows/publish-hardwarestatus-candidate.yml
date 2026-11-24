@@ -179,13 +179,9 @@ jobs:
             org.opencontainers.image.source=https://github.com/404404/HardwareStatus
             org.opencontainers.image.licenses=MIT
             io.hardwarestatus.component=server
-            io.hermesstatus.component=server
             io.hardwarestatus.unifi.catalog.revision=${{ needs.catalog.outputs.revision }}
             io.hardwarestatus.unifi.catalog.schema_version=${{ needs.catalog.outputs.schema_version }}
             io.hardwarestatus.unifi.catalog.sha256=${{ needs.catalog.outputs.sha256 }}
-            io.hermesstatus.unifi.catalog.revision=${{ needs.catalog.outputs.revision }}
-            io.hermesstatus.unifi.catalog.schema_version=${{ needs.catalog.outputs.schema_version }}
-            io.hermesstatus.unifi.catalog.sha256=${{ needs.catalog.outputs.sha256 }}
           build-args: |
             VERSION=${{ inputs.version }}
             VCS_REF=${{ inputs.source_sha }}
@@ -210,13 +206,9 @@ jobs:
             org.opencontainers.image.source=https://github.com/404404/HardwareStatus
             org.opencontainers.image.licenses=MIT
             io.hardwarestatus.component=client
-            io.hermesstatus.component=client
             io.hardwarestatus.unifi.catalog.revision=${{ steps.candidate.outputs.catalog_revision }}
             io.hardwarestatus.unifi.catalog.schema_version=${{ needs.catalog.outputs.schema_version }}
             io.hardwarestatus.unifi.catalog.sha256=${{ steps.candidate.outputs.catalog_sha256 }}
-            io.hermesstatus.unifi.catalog.revision=${{ steps.candidate.outputs.catalog_revision }}
-            io.hermesstatus.unifi.catalog.schema_version=${{ needs.catalog.outputs.schema_version }}
-            io.hermesstatus.unifi.catalog.sha256=${{ steps.candidate.outputs.catalog_sha256 }}
           build-args: |
             VERSION=${{ inputs.version }}
             VCS_REF=${{ inputs.source_sha }}

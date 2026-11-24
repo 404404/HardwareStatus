@@ -437,6 +437,28 @@ def collect_client_build(environ=None, protocol=None):
     return values
 
 
+def _status_dir_from_environment(environ=None):
+    environment = os.environ if environ is None else environ
+    canonical = "/var/lib/hardwarestatus-client"
+    legacy = "/var/lib/serverstatus-client"
+    configured = environment.get("CLIENT_STATUS_DIR", canonical)
+    if configured == canonical and not os.path.isdir(canonical) and os.path.isdir(legacy):
+        return legacy
+    return configured
+
+
+def _hermes_status_file_from_environment(environ=None):
+    environment = os.environ if environ is None else environ
+    canonical_root = "/var/lib/hardwarestatus-client"
+    legacy_root = "/var/lib/serverstatus-client"
+    canonical = canonical_root + "/hermes/hermes.json"
+    legacy = legacy_root + "/hermes/hermes.json"
+    configured = environment.get("HERMES_STATUS_FILE", canonical)
+    if configured == canonical and not os.path.isdir(canonical_root) and os.path.isdir(legacy_root):
+        return legacy
+    return configured
+
+
 def parse_smart_devices_value(value):
     """Parse the optional SMART_DEVICES JSON environment value safely."""
     if value in (None, ""):
@@ -2209,16 +2231,12 @@ class HostExtensionCollector(object):
         if docker_container_limit is None:
             docker_container_limit = _env_int("DOCKER_CONTAINER_LIMIT", 0, 0)
         self.docker_container_limit = min(max(0, docker_container_limit), MAX_DOCKER_CONTAINERS)
-        self.hermes_status_file = hermes_status_file or os.getenv(
-            "HERMES_STATUS_FILE", "/var/lib/serverstatus-client/hermes/hermes.json"
-        )
+        self.hermes_status_file = hermes_status_file or _hermes_status_file_from_environment()
         self.hermes_export_enabled = _env_bool("HERMES_EXPORT_ENABLED", True) if hermes_export_enabled is None else bool(hermes_export_enabled)
         self.hermes_snapshot_interval = hermes_snapshot_interval or _env_int(
             "HERMES_SNAPSHOT_INTERVAL", 10
         )
-        self.status_dir = status_dir if status_dir is not None else os.getenv(
-            "CLIENT_STATUS_DIR", "/var/lib/serverstatus-client"
-        )
+        self.status_dir = status_dir if status_dir is not None else _status_dir_from_environment()
         self.command_runner = command_runner
         self.docker_request = docker_request
         self.lucky_collector = lucky_collector or collector_from_environment()

@@ -17,7 +17,7 @@ ARG CATALOG_SCHEMA_VERSION=2
 ARG CATALOG_SHA256=ba59930b18e88df78bef35cc51ee2ba897169fb8cdcae20465aa69878c6664fa
 
 LABEL org.opencontainers.image.title="HardwareStatus Client" \
-    org.opencontainers.image.description="HardwareStatus host and Hermes profile collector" \
+    org.opencontainers.image.description="HardwareStatus host and optional Hermes Agent collector" \
     org.opencontainers.image.version="${VERSION}" \
     org.opencontainers.image.revision="${VCS_REF}" \
     org.opencontainers.image.created="${BUILD_DATE}" \
@@ -26,11 +26,7 @@ LABEL org.opencontainers.image.title="HardwareStatus Client" \
     io.hardwarestatus.component="client" \
     io.hardwarestatus.unifi.catalog.revision="${CATALOG_REVISION}" \
     io.hardwarestatus.unifi.catalog.schema_version="${CATALOG_SCHEMA_VERSION}" \
-    io.hardwarestatus.unifi.catalog.sha256="${CATALOG_SHA256}" \
-    io.hermesstatus.component="client" \
-    io.hermesstatus.unifi.catalog.revision="${CATALOG_REVISION}" \
-    io.hermesstatus.unifi.catalog.schema_version="${CATALOG_SCHEMA_VERSION}" \
-    io.hermesstatus.unifi.catalog.sha256="${CATALOG_SHA256}"
+    io.hardwarestatus.unifi.catalog.sha256="${CATALOG_SHA256}"
 WORKDIR /app
 
 # smartmontools reads the configured host device; util-linux provides lscpu.
@@ -76,11 +72,11 @@ ENV INTERVAL=1 \
     HARDWARE_INTERVAL=600 \
     DOCKER_INTERVAL=60 \
     DOCKER_CONTAINER_LIMIT=0 \
-    CLIENT_STATUS_DIR=/var/lib/serverstatus-client \
+    CLIENT_STATUS_DIR=/var/lib/hardwarestatus-client \
     HERMES_EXPORT_CONFIG=/app/hermes-exporter.json \
     HERMES_ROOT=/home/hermes \
-    HERMES_STATUS_DIR=/var/lib/serverstatus-client/hermes \
-    HERMES_STATUS_FILE=/var/lib/serverstatus-client/hermes/hermes.json \
+    HERMES_STATUS_DIR=/var/lib/hardwarestatus-client/hermes \
+    HERMES_STATUS_FILE=/var/lib/hardwarestatus-client/hermes/hermes.json \
     HERMES_EXPORT_ENABLED=true \
     HERMES_EXPORT_INTERVAL=600 \
     HERMES_SNAPSHOT_INTERVAL=10 \
@@ -105,14 +101,7 @@ ENV INTERVAL=1 \
     HARDWARESTATUS_CLIENT_PROTOCOL=device_v2 \
     HARDWARESTATUS_UNIFI_CATALOG_REVISION=${CATALOG_REVISION} \
     HARDWARESTATUS_UNIFI_CATALOG_SCHEMA_VERSION=${CATALOG_SCHEMA_VERSION} \
-    HARDWARESTATUS_UNIFI_CATALOG_SHA256=${CATALOG_SHA256} \
-    HERMESSTATUS_CLIENT_VERSION=${VERSION} \
-    HERMESSTATUS_CLIENT_REVISION=${VCS_REF} \
-    HERMESSTATUS_CLIENT_BUILD_TIME=${BUILD_DATE} \
-    HERMESSTATUS_CLIENT_PROTOCOL=device_v2 \
-    HERMESSTATUS_UNIFI_CATALOG_REVISION=${CATALOG_REVISION} \
-    HERMESSTATUS_UNIFI_CATALOG_SCHEMA_VERSION=${CATALOG_SCHEMA_VERSION} \
-    HERMESSTATUS_UNIFI_CATALOG_SHA256=${CATALOG_SHA256}
+    HARDWARESTATUS_UNIFI_CATALOG_SHA256=${CATALOG_SHA256}
 
 RUN chmod +x /app/entrypoint.sh /app/unifi_askpass.py
 
