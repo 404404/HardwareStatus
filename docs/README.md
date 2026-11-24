@@ -21,8 +21,10 @@ see [Rename compatibility](RENAME_COMPATIBILITY.md) and the root [README](../REA
 | [Operations](OPERATIONS.md) | Freshness, diagnostics, backup/recovery, and troubleshooting. |
 | [Development](DEVELOPMENT.md) | Checks, documentation expectations, and PR workflow. |
 | [Rename compatibility](RENAME_COMPATIBILITY.md) | Canonical names, retained aliases, and safe single-writer migration. |
+| [2.8 Candidate publication](CANDIDATE_PUBLICATION_2_8.md) | Exact-SHA source trust, CI gates, immutable images, and protected approval. |
 | [EasyTier design](design/EASYTIER_MONITORING.md) | Read-only collection, aggregate/display bounds, and uncertainty. |
 | [Hardware design](design/HARDWARE_MONITORING.md) | SMART, filesystems, resource diagnostics, and safe fallbacks. |
+| [Client runtime compatibility](design/CLIENT_RUNTIME_COMPATIBILITY.md) | Python 3.8 image contract and real-image smoke gate. |
 | [UniFi design](design/UNIFI_MONITORING.md) | Catalog authority, runtime identity, WAN/port ownership, and read-only transport. |
 
 Keep English and Chinese documents semantically synchronized in one change.

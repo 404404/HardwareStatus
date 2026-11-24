@@ -5,9 +5,11 @@ present on the default `2.0` branch. Dispatch it on `2.0` with one input:
 the full lowercase SHA of the current, non-draft head of a same-repository PR
 to `2.0` (or that PR's merged head). The source gate also requires the latest
 `CI` pull-request run for that exact SHA and PR to be successful, including
-the `contracts`, `go`, `python`, `frontend`, `compose`, `images`, and
-`security` jobs. The workflow checks out and builds that SHA, never a moving
-branch name.
+the `contracts`, `go`, `python`, `client-runtime`, `frontend`, `compose`,
+`images`, and `security` jobs. `client-runtime` runs the complete Client test
+suite under Python 3.8; `images` depends on it and performs actual image startup
+and an authenticated Device v2 report smoke against an isolated Server. The
+workflow checks out and builds that SHA, never a moving branch name.
 
 Publication is limited to `ghcr.io/404404/hardwarestatus-server` and
 `ghcr.io/404404/hardwarestatus-client`, each tagged
@@ -85,3 +87,6 @@ Pending cleanup review only (not deleted by this workflow):
 
 This workflow does not create a formal release, update old package names,
 deploy containers, or modify existing 2.5/2.6/2.7 artifacts.
+
+The Client Python baseline and its upgrade risks are recorded in
+[Client Runtime Compatibility](design/CLIENT_RUNTIME_COMPATIBILITY.md).

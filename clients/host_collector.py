@@ -414,7 +414,9 @@ def collect_client_build(environ=None, protocol=None):
     """
     environment = os.environ if environ is None else environ
     def metadata_value(name):
-        canonical = environment.get("HARDWARESTATUS_" + name.removeprefix("HERMESSTATUS_"))
+        legacy_prefix = "HERMESSTATUS_"
+        suffix = name[len(legacy_prefix):] if name.startswith(legacy_prefix) else name
+        canonical = environment.get("HARDWARESTATUS_" + suffix)
         legacy = environment.get(name)
         if canonical is not None and legacy is not None and canonical != legacy:
             return None

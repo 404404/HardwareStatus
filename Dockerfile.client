@@ -1,3 +1,5 @@
+# Keep the established Python 3.8 Client runtime until a separate DSM/SMART/
+# psutil compatibility qualification approves a base-image change.
 ARG ALPINE_IMAGE=alpine:3.13
 ARG VERSION=2.8
 ARG VCS_REF=unknown
