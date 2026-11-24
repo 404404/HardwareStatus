@@ -47,6 +47,10 @@ Registry 管理员仍可删除 package version，因此需保存最终 digest，
 仓库管理员必须为该 Environment 配置 required reviewer，并将可部署分支
 限制为 `2.0`；仅在 YAML 中声明 Environment 不会自动设置审批规则。
 
+历史 2.5、2.6、2.7 发布器也仅在各自的 `publish` job 授予 package 写权限。
+2.7 发布器只允许在 `codex/2.7-*` 分支 push 或该分支手动调度时发布；
+pull request 运行绝不发布镜像。
+
 发布 job 使用仓库范围的 `GITHUB_TOKEN` 并仅授予 `packages: write`；镜像
 包含指向本仓库的 `org.opencontainers.image.source`，以建立 package 与
 workflow 仓库的关联。仓库所有者仍须具有创建 package 的权限。本 bootstrap

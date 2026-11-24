@@ -56,6 +56,10 @@ publication, repository administrators must configure that Environment with
 required reviewer(s) and restrict deployment branches to `2.0`; merely naming
 an Environment in YAML does not create reviewer protection rules.
 
+The historical 2.5, 2.6, and 2.7 publishers also scope package-write access to
+their `publish` jobs. The 2.7 publisher can publish only on a `codex/2.7-*`
+branch push or manual dispatch on that branch; pull-request runs never publish.
+
 The publish job uses its repository-scoped `GITHUB_TOKEN` with `packages:
 write`, and the image carries `org.opencontainers.image.source` pointing to
 this repository so the package is linked to the workflow repository. The

@@ -212,12 +212,26 @@ class CandidatePublishStateTests(unittest.TestCase):
             workflow,
             r"hardwarestatus-(?:server|client):(?:2\.5|2\.6|2\.7)(?:-|$)",
         )
+        legacy_workflows = {}
         for filename in (
             "publish-2.5-candidate-images.yml",
             "publish-2.6-candidate-images.yml",
             "publish-2.7-candidate-images.yml",
         ):
-            self.assertTrue((ROOT / ".github/workflows" / filename).is_file())
+            legacy_workflows[filename] = (ROOT / ".github/workflows" / filename).read_text(encoding="utf-8")
+            legacy = legacy_workflows[filename]
+            self.assertEqual(legacy.count("packages: write"), 1, filename)
+            legacy_publish = legacy.split("\n  publish:\n", 1)[1]
+            self.assertIn("packages: write", legacy_publish, filename)
+            self.assertNotIn("packages: write", legacy.split("\njobs:\n", 1)[0], filename)
+
+        workflow_27 = legacy_workflows["publish-2.7-candidate-images.yml"]
+        publish_27 = workflow_27.split("\n  publish:\n", 1)[1].split("\n    runs-on:", 1)[0]
+        self.assertIn("github.event_name == 'push'", publish_27)
+        self.assertIn("github.event_name == 'workflow_dispatch'", publish_27)
+        self.assertIn("refs/heads/codex/2.7-", publish_27)
+        self.assertNotIn("github.event_name == 'pull_request'", publish_27)
+        self.assertNotIn("github.event_name != 'pull_request'", publish_27)
 
 
 if __name__ == "__main__":
