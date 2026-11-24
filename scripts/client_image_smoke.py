@@ -306,7 +306,20 @@ def _verify_catalog_in_client_image(image):
     ], timeout=30)
 
 
-def _preflight_client_runtime(image, client_secrets, client_env):
+def _populate_client_secret_volume(image, client_secrets, volume_name):
+    _run([
+        "docker", "run", "--rm", "--network", "none",
+        "--mount", "type=bind,src=" + str(client_secrets) + ",dst=/source,readonly",
+        "--mount", "type=volume,src=" + volume_name + ",dst=/run/secrets",
+        "--entrypoint", "sh", image, "-c",
+        "cp /source/device-token /run/secrets/device-token && "
+        "cp /source/test-ca.crt /run/secrets/test-ca.crt && "
+        "chmod 0400 /run/secrets/device-token && "
+        "chmod 0600 /run/secrets/test-ca.crt",
+    ], timeout=30)
+
+
+def _preflight_client_runtime(image, secret_volume_name, client_env):
     code = "\n".join((
         "try:",
         "    from device_client_config import load_client_selection, load_custom_ca, load_device_token",
@@ -329,7 +342,7 @@ def _preflight_client_runtime(image, client_secrets, client_env):
     ))
     command = [
         "docker", "run", "--rm", "--network", "none", "--read-only",
-        "--mount", "type=bind,src=" + str(client_secrets) + ",dst=/run/secrets,readonly",
+        "--mount", "type=volume,src=" + secret_volume_name + ",dst=/run/secrets,readonly",
     ]
     for key, value in client_env.items():
         command.extend(["--env", key + "=" + value])
@@ -366,9 +379,11 @@ def run_smoke(arguments):
     server_name = "hardwarestatus-smoke-server-" + suffix
     proxy_name = "hardwarestatus-smoke-proxy-" + suffix
     client_name = "hardwarestatus-smoke-client-" + suffix
+    secret_volume_name = "hardwarestatus-smoke-secrets-" + suffix
     device_id = "ci-smoke-" + suffix
     created = []
     network_created = False
+    volume_created = False
     with tempfile.TemporaryDirectory(prefix="hardwarestatus-client-smoke-") as raw_directory:
         directory = Path(raw_directory)
         token_path = _create_test_documents(directory, device_id)
@@ -382,6 +397,11 @@ def run_smoke(arguments):
         client_ca.write_bytes(certificate.read_bytes())
         client_ca.chmod(0o600)
         try:
+            _run(["docker", "volume", "create", secret_volume_name])
+            volume_created = True
+            _populate_client_secret_volume(
+                arguments.client_image, client_secrets, secret_volume_name
+            )
             _run(["docker", "network", "create", "--internal", network_name])
             network_created = True
             server_ip, proxy_ip = _network_addresses(network_name)
@@ -430,7 +450,7 @@ def run_smoke(arguments):
                 "HERMES_EXPORT_ENABLED": "false",
             }
             _preflight_client_runtime(
-                arguments.client_image, client_secrets, client_env
+                arguments.client_image, secret_volume_name, client_env
             )
             run_client = [
                 "docker", "run", "--detach", "--name", client_name,
@@ -439,7 +459,7 @@ def run_smoke(arguments):
                 "--security-opt", "no-new-privileges:true",
                 "--tmpfs", "/tmp:size=32m,mode=1777,nosuid,nodev,noexec",
                 "--tmpfs", "/var/lib/hardwarestatus-client:size=16m,mode=0700",
-                "--mount", "type=bind,src=" + str(client_secrets) + ",dst=/run/secrets,readonly",
+                "--mount", "type=volume,src=" + secret_volume_name + ",dst=/run/secrets,readonly",
             ]
             for key, value in client_env.items():
                 run_client.extend(["--env", key + "=" + value])
@@ -469,6 +489,8 @@ def run_smoke(arguments):
                 _run(["docker", "rm", "--force", name], check=False, timeout=30)
             if network_created:
                 _run(["docker", "network", "rm", network_name], check=False, timeout=30)
+            if volume_created:
+                _run(["docker", "volume", "rm", secret_volume_name], check=False, timeout=30)
 
 
 def parse_args(argv):
