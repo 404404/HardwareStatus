@@ -322,8 +322,8 @@ def _populate_client_secret_volume(image, client_secrets, volume_name):
 def _preflight_client_runtime(image, secret_volume_name, client_env):
     code = "\n".join((
         "try:",
-        "    from device_client_config import load_client_selection, load_custom_ca, load_device_token",
-        "    from multi_device_contracts import ClientContractError, ClientMode",
+        "    from device_client_config import ClientMode, load_client_selection, load_custom_ca, load_device_token",
+        "    from multi_device_contracts import ClientContractError",
         "    import runpy",
         "    selection = load_client_selection([])",
         "    assert selection.mode is ClientMode.DEVICE_V2",
