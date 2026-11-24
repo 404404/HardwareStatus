@@ -306,6 +306,46 @@ def _verify_catalog_in_client_image(image):
     ], timeout=30)
 
 
+def _preflight_client_runtime(image, client_secrets, client_env):
+    code = "\n".join((
+        "try:",
+        "    from device_client_config import load_client_selection, load_custom_ca, load_device_token",
+        "    from multi_device_contracts import ClientContractError, ClientMode",
+        "    import runpy",
+        "    selection = load_client_selection([])",
+        "    assert selection.mode is ClientMode.DEVICE_V2",
+        "    load_device_token(selection.device_v2.token_file)",
+        "    load_custom_ca(selection.device_v2.ca_file)",
+        "    client = runpy.run_path('/app/client-psutil.py', run_name='smoke_preflight')",
+        "    client['_device_v2_extension_collector'](selection.device_v2, [])",
+        "except Exception as exc:",
+        "    from multi_device_contracts import ClientContractError",
+        "    if isinstance(exc, ClientContractError):",
+        "        print('CLIENT_PREFLIGHT_ERROR=' + str(exc))",
+        "    else:",
+        "        print('CLIENT_PREFLIGHT_ERROR=' + type(exc).__name__)",
+        "    raise SystemExit(2)",
+        "print('CLIENT_PREFLIGHT=PASS')",
+    ))
+    command = [
+        "docker", "run", "--rm", "--network", "none", "--read-only",
+        "--mount", "type=bind,src=" + str(client_secrets) + ",dst=/run/secrets,readonly",
+    ]
+    for key, value in client_env.items():
+        command.extend(["--env", key + "=" + value])
+    command.extend(["--entrypoint", "python3", image, "-c", code])
+    result = _run(command, check=False, timeout=30)
+    if result.returncode != 0:
+        diagnostic = next(
+            (line.strip() for line in result.stdout.splitlines()
+             if line.startswith("CLIENT_PREFLIGHT_ERROR=")),
+            "CLIENT_PREFLIGHT_ERROR=unclassified",
+        )
+        raise SmokeFailure("actual Client configuration preflight failed: " + diagnostic)
+    if "CLIENT_PREFLIGHT=PASS" not in result.stdout:
+        raise SmokeFailure("actual Client configuration preflight returned no pass marker")
+
+
 def run_smoke(arguments):
     server_image = _check_image(arguments.server_image, "server", arguments)
     client_image = _check_image(arguments.client_image, "client", arguments)
@@ -389,6 +429,9 @@ def run_smoke(arguments):
                 "HARDWARESTATUS_CLIENT_PROTOCOL": "device_v2",
                 "HERMES_EXPORT_ENABLED": "false",
             }
+            _preflight_client_runtime(
+                arguments.client_image, client_secrets, client_env
+            )
             run_client = [
                 "docker", "run", "--detach", "--name", client_name,
                 "--network", network_name,
