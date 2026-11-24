@@ -4,8 +4,10 @@
 `2.0` 分支。只能在 `2.0` 上调度，并提供一个输入：同仓库、目标为
 `2.0` 的当前非 Draft PR HEAD 完整小写 SHA（或该 PR 已合并的 HEAD）。
 源码门禁还要求该 SHA/PR 对应的最新 `CI` pull-request run 成功，且
-`contracts`、`go`、`python`、`frontend`、`compose`、`images`、`security`
-任务全部成功。workflow 按固定 SHA checkout/build，不跟随可移动分支名。
+`contracts`、`go`、`python`、`client-runtime`、`frontend`、`compose`、`images`、
+`security` 任务全部成功。workflow 按固定 SHA checkout/build，不跟随可移动分支名。
+`client-runtime` 被列为显式必需 job，未完成 Python 3.8 运行时检查的 CI 不得取得
+候选镜像发布资格。
 
 发布范围严格限定为 `ghcr.io/404404/hardwarestatus-server` 和
 `ghcr.io/404404/hardwarestatus-client`，标签为

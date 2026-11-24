@@ -5,9 +5,11 @@ present on the default `2.0` branch. Dispatch it on `2.0` with one input:
 the full lowercase SHA of the current, non-draft head of a same-repository PR
 to `2.0` (or that PR's merged head). The source gate also requires the latest
 `CI` pull-request run for that exact SHA and PR to be successful, including
-the `contracts`, `go`, `python`, `frontend`, `compose`, `images`, and
-`security` jobs. The workflow checks out and builds that SHA, never a moving
-branch name.
+the `contracts`, `go`, `python`, `client-runtime`, `frontend`, `compose`,
+`images`, and `security` jobs. The workflow checks out and builds that SHA,
+never a moving branch name. `client-runtime` is an explicit required job so
+an incomplete CI run cannot qualify an image that has not passed Python 3.8
+runtime checks.
 
 Publication is limited to `ghcr.io/404404/hardwarestatus-server` and
 `ghcr.io/404404/hardwarestatus-client`, each tagged

@@ -57,6 +57,11 @@ class CandidateSourceValidationTests(unittest.TestCase):
         MODULE.validate_ci_jobs(jobs)
         with self.assertRaises(MODULE.SourceValidationError):
             MODULE.validate_ci_jobs(jobs[:-1])
+        without_python38_runtime = [
+            job for job in jobs if job["name"] != "client-runtime"
+        ]
+        with self.assertRaises(MODULE.SourceValidationError):
+            MODULE.validate_ci_jobs(without_python38_runtime)
         failed = [dict(job) for job in jobs]
         failed[0]["conclusion"] = "failure"
         with self.assertRaises(MODULE.SourceValidationError):
