@@ -108,7 +108,8 @@ jobs:
 
   client-runtime:
     needs: catalog
-    runs-on: ubuntu-latest
+    # Python 3.8 is not available from setup-python on the current ubuntu-latest image.
+    runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
