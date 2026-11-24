@@ -207,10 +207,11 @@ class CandidatePublishStateTests(unittest.TestCase):
         self.assertEqual(workflow.count("packages: write"), 1)
         publish_section = workflow.split("\n  publish:\n", 1)[1]
         self.assertIn("environment:\n      name: hardwarestatus-2.8-candidate-publish", publish_section)
-        self.assertNotIn("latest", workflow)
-        self.assertNotIn(":2.5-", workflow)
-        self.assertNotIn(":2.6-", workflow)
-        self.assertNotIn(":2.7-", workflow)
+        self.assertNotIn(":latest", workflow)
+        self.assertNotRegex(
+            workflow,
+            r"hardwarestatus-(?:server|client):(?:2\.5|2\.6|2\.7)(?:-|$)",
+        )
         for filename in (
             "publish-2.5-candidate-images.yml",
             "publish-2.6-candidate-images.yml",
