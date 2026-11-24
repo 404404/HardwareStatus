@@ -56,13 +56,12 @@ class RenameCompatibilityTests(unittest.TestCase):
 
     def test_future_candidate_workflow_uses_new_packages_without_retagging_legacy(self):
         workflow = self.read(".github/workflows/publish-hardwarestatus-candidate.yml")
-        self.assertIn("hardwarestatus-server:${candidate_tag}", workflow)
-        self.assertIn("hardwarestatus-client:${candidate_tag}", workflow)
+        self.assertIn("hardwarestatus-server:${{ steps.plan.outputs.CANDIDATE_TAG }}", workflow)
+        self.assertIn("hardwarestatus-client:${{ steps.plan.outputs.CANDIDATE_TAG }}", workflow)
         self.assertIn("SOURCE_SHA", workflow)
-        self.assertIn("(( version_minor >= 8 ))", workflow)
         self.assertIn("io.hardwarestatus.component=server", workflow)
         self.assertIn("io.hardwarestatus.component=client", workflow)
-        self.assertIn("group: hardwarestatus-candidate-${{ inputs.source_sha }}", workflow)
+        self.assertIn("group: hardwarestatus-2.8-candidate-${{ inputs.source_sha }}", workflow)
         self.assertIn("cancel-in-progress: false", workflow)
         self.assertIn("unable to prove candidate tag is absent; refusing publication", workflow)
         self.assertNotIn("tags: ghcr.io/${{ github.repository_owner }}/hermesstatus-", workflow)

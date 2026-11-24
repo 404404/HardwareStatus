@@ -58,8 +58,13 @@ class PublishWorkflowSafetyTests(unittest.TestCase):
         self.assertIn("  workflow_dispatch:", header)
         self.assertNotIn("pull_request:", header)
         self.assertIn('[[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]', workflow)
-        self.assertIn("ref: ${{ inputs.source_sha }}", publish)
-        self.assertIn('candidate_tag="${PRODUCT_VERSION}-${SOURCE_SHA:0:12}"', publish)
+        # The workflow validates the requested full SHA first, then threads the
+        # validated output through every checkout and the publish state machine.
+        self.assertIn("ref: ${{ needs.source.outputs.source_sha }}", publish)
+        self.assertIn('SOURCE_SHA: ${{ needs.source.outputs.source_sha }}', publish)
+        self.assertIn('--source-sha "$SOURCE_SHA"', publish)
+        self.assertIn('tags: ghcr.io/404404/hardwarestatus-server:${{ steps.plan.outputs.CANDIDATE_TAG }}', publish)
+        self.assertIn('tags: ghcr.io/404404/hardwarestatus-client:${{ steps.plan.outputs.CANDIDATE_TAG }}', publish)
         self.assertNotRegex(publish, r"(?i)ghcr\.io/[^\s:]+:(?:latest|stable)(?:\s|$)")
         self.assertIn("refusing publication", publish)
 
