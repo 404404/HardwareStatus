@@ -229,6 +229,11 @@ class CandidatePublishStateTests(unittest.TestCase):
         self.assertIn("if: ${{ steps.plan.outputs.PUBLISH_SERVER == 'true' }}", workflow)
         self.assertIn("if: ${{ steps.plan.outputs.PUBLISH_CLIENT == 'true' }}", workflow)
 
+    def test_candidate_workflow_quotes_numeric_looking_branch_refs(self):
+        workflow = (ROOT / ".github/workflows/publish-hardwarestatus-candidate.yml").read_text(encoding="utf-8")
+        self.assertEqual(workflow.count('ref: "2.0"'), 3)
+        self.assertNotIn("ref: 2.0", workflow)
+
     def test_publish_permissions_and_legacy_release_boundaries(self):
         workflow = (ROOT / ".github/workflows/publish-hardwarestatus-candidate.yml").read_text(encoding="utf-8")
         self.assertEqual(workflow.count("packages: write"), 1)
