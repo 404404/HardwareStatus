@@ -63,7 +63,9 @@ class RenameCompatibilityTests(unittest.TestCase):
         self.assertIn("io.hardwarestatus.component=client", workflow)
         self.assertIn("group: hardwarestatus-2.8-candidate-${{ inputs.source_sha }}", workflow)
         self.assertIn("cancel-in-progress: false", workflow)
-        self.assertIn("unable to prove candidate tag is absent; refusing publication", workflow)
+        state_machine = self.read("scripts/candidate_publish_state.py")
+        self.assertIn("registry query failed; state is unknown", state_machine)
+        self.assertIn('Observation("UNKNOWN")', state_machine)
         self.assertNotIn("tags: ghcr.io/${{ github.repository_owner }}/hermesstatus-", workflow)
         self.assertNotIn("io.hermesstatus.", workflow)
 

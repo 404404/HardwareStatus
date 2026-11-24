@@ -66,7 +66,10 @@ class PublishWorkflowSafetyTests(unittest.TestCase):
         self.assertIn('tags: ghcr.io/404404/hardwarestatus-server:${{ steps.plan.outputs.CANDIDATE_TAG }}', publish)
         self.assertIn('tags: ghcr.io/404404/hardwarestatus-client:${{ steps.plan.outputs.CANDIDATE_TAG }}', publish)
         self.assertNotRegex(publish, r"(?i)ghcr\.io/[^\s:]+:(?:latest|stable)(?:\s|$)")
-        self.assertIn("refusing publication", publish)
+        self.assertIn("python3 scripts/candidate_publish_state.py plan", publish)
+        state_machine = (ROOT / "scripts" / "candidate_publish_state.py").read_text(encoding="utf-8")
+        self.assertIn("CANDIDATE_PUBLICATION=FAIL_CLOSED", state_machine)
+        self.assertIn("registry query failed; state is unknown", state_machine)
 
 
 if __name__ == "__main__":
