@@ -255,13 +255,9 @@ jobs:
             org.opencontainers.image.source=https://github.com/404404/HardwareStatus
             org.opencontainers.image.licenses=MIT
             io.hardwarestatus.component=server
-            io.hermesstatus.component=server
             io.hardwarestatus.unifi.catalog.revision=${{ needs.catalog.outputs.revision }}
             io.hardwarestatus.unifi.catalog.schema_version=2
             io.hardwarestatus.unifi.catalog.sha256=${{ needs.catalog.outputs.sha256 }}
-            io.hermesstatus.unifi.catalog.revision=${{ needs.catalog.outputs.revision }}
-            io.hermesstatus.unifi.catalog.schema_version=2
-            io.hermesstatus.unifi.catalog.sha256=${{ needs.catalog.outputs.sha256 }}
           build-args: |
             VERSION=2.8
             VCS_REF=${{ needs.source.outputs.source_sha }}
@@ -287,13 +283,9 @@ jobs:
             org.opencontainers.image.source=https://github.com/404404/HardwareStatus
             org.opencontainers.image.licenses=MIT
             io.hardwarestatus.component=client
-            io.hermesstatus.component=client
             io.hardwarestatus.unifi.catalog.revision=${{ needs.catalog.outputs.revision }}
             io.hardwarestatus.unifi.catalog.schema_version=2
             io.hardwarestatus.unifi.catalog.sha256=${{ needs.catalog.outputs.sha256 }}
-            io.hermesstatus.unifi.catalog.revision=${{ needs.catalog.outputs.revision }}
-            io.hermesstatus.unifi.catalog.schema_version=2
-            io.hermesstatus.unifi.catalog.sha256=${{ needs.catalog.outputs.sha256 }}
           build-args: |
             VERSION=2.8
             VCS_REF=${{ needs.source.outputs.source_sha }}

@@ -28,7 +28,7 @@ def metadata(component, *, source_sha=SOURCE_SHA, catalog_revision=CATALOG_REVIS
         "org.opencontainers.image.description": (
             "HardwareStatus Go server and read-only dashboard"
             if component == "server"
-            else "HardwareStatus host and Hermes profile collector"
+            else "HardwareStatus host and optional Hermes Agent collector"
         ),
         "org.opencontainers.image.version": "2.8",
         "org.opencontainers.image.revision": source_sha,
@@ -36,21 +36,20 @@ def metadata(component, *, source_sha=SOURCE_SHA, catalog_revision=CATALOG_REVIS
         "org.opencontainers.image.source": MODULE.SOURCE_URL,
         "org.opencontainers.image.licenses": "MIT",
         "io.hardwarestatus.component": component,
-        "io.hermesstatus.component": component,
     }
-    for prefix in ("io.hardwarestatus", "io.hermesstatus"):
-        labels[prefix + ".unifi.catalog.revision"] = catalog_revision
-        labels[prefix + ".unifi.catalog.schema_version"] = "2"
-        labels[prefix + ".unifi.catalog.sha256"] = catalog_sha
+    prefix = "io.hardwarestatus"
+    labels[prefix + ".unifi.catalog.revision"] = catalog_revision
+    labels[prefix + ".unifi.catalog.schema_version"] = "2"
+    labels[prefix + ".unifi.catalog.sha256"] = catalog_sha
     env = []
     if component == "client":
         env = [
-            "HERMESSTATUS_CLIENT_VERSION=2.8",
-            "HERMESSTATUS_CLIENT_REVISION=" + source_sha,
-            "HERMESSTATUS_CLIENT_BUILD_TIME=" + CREATED,
-            "HERMESSTATUS_UNIFI_CATALOG_REVISION=" + catalog_revision,
-            "HERMESSTATUS_UNIFI_CATALOG_SCHEMA_VERSION=2",
-            "HERMESSTATUS_UNIFI_CATALOG_SHA256=" + catalog_sha,
+            "HARDWARESTATUS_CLIENT_VERSION=2.8",
+            "HARDWARESTATUS_CLIENT_REVISION=" + source_sha,
+            "HARDWARESTATUS_CLIENT_BUILD_TIME=" + CREATED,
+            "HARDWARESTATUS_UNIFI_CATALOG_REVISION=" + catalog_revision,
+            "HARDWARESTATUS_UNIFI_CATALOG_SCHEMA_VERSION=2",
+            "HARDWARESTATUS_UNIFI_CATALOG_SHA256=" + catalog_sha,
         ]
     package = MODULE.IMAGE_REPOSITORIES[component]
     raw = [{
@@ -60,7 +59,7 @@ def metadata(component, *, source_sha=SOURCE_SHA, catalog_revision=CATALOG_REVIS
         "Config": {
             "Labels": labels,
             "Env": env,
-            "Entrypoint": ["/usr/local/bin/serverstatus"] if component == "server" else ["/app/entrypoint.sh"],
+            "Entrypoint": ["/usr/local/bin/hardwarestatus-server"] if component == "server" else ["/app/entrypoint.sh"],
         },
     }]
     return MODULE.safe_image_metadata(raw, component)
@@ -143,6 +142,18 @@ class CandidatePublishStateTests(unittest.TestCase):
         with self.assertRaisesRegex(MODULE.CandidateStateError, "invalid provenance"):
             classify(MODULE.Observation("PRESENT", valid=False), MODULE.Observation("ABSENT"))
 
+    def test_existing_legacy_identity_fields_fail_closed(self):
+        for component in ("server", "client"):
+            with self.subTest(component=component):
+                legacy = metadata(component)
+                legacy["legacy_identity_present"] = True
+                existing = present(component, legacy)
+                with self.assertRaisesRegex(MODULE.CandidateStateError, "provenance mismatch: legacy_identity"):
+                    if component == "server":
+                        classify(existing, MODULE.Observation("ABSENT"))
+                    else:
+                        classify(MODULE.Observation("ABSENT"), existing)
+
     def test_registry_404_only_proves_absence_for_known_manifest_codes(self):
         absent = json.dumps({"errors": [{"code": "MANIFEST_UNKNOWN"}]}).encode()
         self.assertEqual(MODULE.interpret_manifest_response(404, {}, absent), ("ABSENT", None))
@@ -183,17 +194,33 @@ class CandidatePublishStateTests(unittest.TestCase):
                 "Labels": metadata("client")["labels"],
                 "Entrypoint": ["/app/entrypoint.sh"],
                 "Env": ["UNRELATED_SECRET=must-not-escape"] + [
-                    "HERMESSTATUS_CLIENT_VERSION=2.8",
-                    "HERMESSTATUS_CLIENT_REVISION=" + SOURCE_SHA,
-                    "HERMESSTATUS_CLIENT_BUILD_TIME=" + CREATED,
-                    "HERMESSTATUS_UNIFI_CATALOG_REVISION=" + CATALOG_REVISION,
-                    "HERMESSTATUS_UNIFI_CATALOG_SCHEMA_VERSION=2",
-                    "HERMESSTATUS_UNIFI_CATALOG_SHA256=" + CATALOG_SHA,
+                    "HARDWARESTATUS_CLIENT_VERSION=2.8",
+                    "HARDWARESTATUS_CLIENT_REVISION=" + SOURCE_SHA,
+                    "HARDWARESTATUS_CLIENT_BUILD_TIME=" + CREATED,
+                    "HARDWARESTATUS_UNIFI_CATALOG_REVISION=" + CATALOG_REVISION,
+                    "HARDWARESTATUS_UNIFI_CATALOG_SCHEMA_VERSION=2",
+                    "HARDWARESTATUS_UNIFI_CATALOG_SHA256=" + CATALOG_SHA,
                 ],
             },
         }]
         selected = MODULE.safe_image_metadata(raw, "client")
         self.assertNotIn("UNRELATED_SECRET", json.dumps(selected))
+
+    def test_old_identity_is_detected_without_copying_legacy_fields(self):
+        raw = [{
+            "Os": "linux",
+            "Architecture": "amd64",
+            "RepoDigests": [MODULE.IMAGE_REPOSITORIES["client"] + "@" + DIGEST],
+            "Config": {
+                "Labels": {"io.hermesstatus.component": "client"},
+                "Entrypoint": ["/app/entrypoint.sh"],
+                "Env": ["HERMESSTATUS_CLIENT_VERSION=2.8", "PRIVATE_VALUE=do-not-copy"],
+            },
+        }]
+        selected = MODULE.safe_image_metadata(raw, "client")
+        self.assertTrue(selected["legacy_identity_present"])
+        self.assertNotIn("HERMESSTATUS_CLIENT_VERSION", json.dumps(selected))
+        self.assertNotIn("PRIVATE_VALUE", json.dumps(selected))
 
     def test_publish_concurrency_is_per_full_sha_and_does_not_cancel_active_run(self):
         workflow = (ROOT / ".github/workflows/publish-hardwarestatus-candidate.yml").read_text(encoding="utf-8")
@@ -208,6 +235,7 @@ class CandidatePublishStateTests(unittest.TestCase):
         publish_section = workflow.split("\n  publish:\n", 1)[1]
         self.assertIn("environment:\n      name: hardwarestatus-2.8-candidate-publish", publish_section)
         self.assertNotIn(":latest", workflow)
+        self.assertNotIn("io.hermesstatus.", workflow)
         self.assertNotRegex(
             workflow,
             r"hardwarestatus-(?:server|client):(?:2\.5|2\.6|2\.7)(?:-|$)",

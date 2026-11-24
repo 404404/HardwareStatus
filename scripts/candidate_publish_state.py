@@ -110,28 +110,31 @@ def safe_image_metadata(payload: Any, component: str) -> dict[str, Any]:
                 "org.opencontainers.image.source",
                 "org.opencontainers.image.licenses",
                 "io.hardwarestatus.component",
-                "io.hermesstatus.component",
                 "io.hardwarestatus.unifi.catalog.revision",
                 "io.hardwarestatus.unifi.catalog.schema_version",
                 "io.hardwarestatus.unifi.catalog.sha256",
-                "io.hermesstatus.unifi.catalog.revision",
-                "io.hermesstatus.unifi.catalog.schema_version",
-                "io.hermesstatus.unifi.catalog.sha256",
             )
         },
         "runtime": {
             key: env.get(key)
             for key in (
-                "HERMESSTATUS_CLIENT_VERSION",
-                "HERMESSTATUS_CLIENT_REVISION",
-                "HERMESSTATUS_CLIENT_BUILD_TIME",
-                "HERMESSTATUS_UNIFI_CATALOG_REVISION",
-                "HERMESSTATUS_UNIFI_CATALOG_SCHEMA_VERSION",
-                "HERMESSTATUS_UNIFI_CATALOG_SHA256",
+                "HARDWARESTATUS_CLIENT_VERSION",
+                "HARDWARESTATUS_CLIENT_REVISION",
+                "HARDWARESTATUS_CLIENT_BUILD_TIME",
+                "HARDWARESTATUS_UNIFI_CATALOG_REVISION",
+                "HARDWARESTATUS_UNIFI_CATALOG_SCHEMA_VERSION",
+                "HARDWARESTATUS_UNIFI_CATALOG_SHA256",
             )
         }
         if component == "client"
         else {},
+        "legacy_identity_present": any(
+            isinstance(key, str) and key.startswith("io.hermesstatus.") for key in labels
+        ) or any(
+            isinstance(item, str)
+            and item.split("=", 1)[0].startswith(("HERMESSTATUS_CLIENT_", "HERMESSTATUS_UNIFI_CATALOG_"))
+            for item in (config.get("Env") or [])
+        ),
     }
 
 
@@ -147,10 +150,12 @@ def validate_image_metadata(
 ) -> tuple[bool, str]:
     if metadata.get("component") != component:
         return False, "component"
+    if metadata.get("legacy_identity_present") is not False:
+        return False, "legacy_identity"
     if metadata.get("os") != "linux" or metadata.get("architecture") != "amd64":
         return False, "platform"
     expected_entrypoint = (
-        ["/usr/local/bin/serverstatus"] if component == "server" else ["/app/entrypoint.sh"]
+        ["/usr/local/bin/hardwarestatus-server"] if component == "server" else ["/app/entrypoint.sh"]
     )
     if metadata.get("entrypoint") != expected_entrypoint:
         return False, "entrypoint"
@@ -162,20 +167,16 @@ def validate_image_metadata(
         "org.opencontainers.image.description": (
             "HardwareStatus Go server and read-only dashboard"
             if component == "server"
-            else "HardwareStatus host and Hermes profile collector"
+            else "HardwareStatus host and optional Hermes Agent collector"
         ),
         "org.opencontainers.image.version": VERSION,
         "org.opencontainers.image.revision": source_sha,
         "org.opencontainers.image.source": SOURCE_URL,
         "org.opencontainers.image.licenses": "MIT",
         "io.hardwarestatus.component": component,
-        "io.hermesstatus.component": component,
         "io.hardwarestatus.unifi.catalog.revision": catalog_revision,
         "io.hardwarestatus.unifi.catalog.schema_version": str(catalog_schema_version),
         "io.hardwarestatus.unifi.catalog.sha256": catalog_sha256,
-        "io.hermesstatus.unifi.catalog.revision": catalog_revision,
-        "io.hermesstatus.unifi.catalog.schema_version": str(catalog_schema_version),
-        "io.hermesstatus.unifi.catalog.sha256": catalog_sha256,
     }
     for key, expected in expected_labels.items():
         if labels.get(key) != expected:
@@ -192,12 +193,12 @@ def validate_image_metadata(
     if component == "client":
         runtime = metadata.get("runtime") or {}
         expected_runtime = {
-            "HERMESSTATUS_CLIENT_VERSION": VERSION,
-            "HERMESSTATUS_CLIENT_REVISION": source_sha,
-            "HERMESSTATUS_CLIENT_BUILD_TIME": created,
-            "HERMESSTATUS_UNIFI_CATALOG_REVISION": catalog_revision,
-            "HERMESSTATUS_UNIFI_CATALOG_SCHEMA_VERSION": str(catalog_schema_version),
-            "HERMESSTATUS_UNIFI_CATALOG_SHA256": catalog_sha256,
+            "HARDWARESTATUS_CLIENT_VERSION": VERSION,
+            "HARDWARESTATUS_CLIENT_REVISION": source_sha,
+            "HARDWARESTATUS_CLIENT_BUILD_TIME": created,
+            "HARDWARESTATUS_UNIFI_CATALOG_REVISION": catalog_revision,
+            "HARDWARESTATUS_UNIFI_CATALOG_SCHEMA_VERSION": str(catalog_schema_version),
+            "HARDWARESTATUS_UNIFI_CATALOG_SHA256": catalog_sha256,
         }
         for key, expected in expected_runtime.items():
             if runtime.get(key) != expected:

@@ -13,6 +13,11 @@
 发布前后校验 OCI revision、组件、平台、Catalog V2 revision 与 bundle
 SHA256；完成后记录镜像 digest，使用时优先固定 digest。
 
+新的 2.8 输出只使用 `io.hardwarestatus.*` 产品/Catalog 标签和
+`HARDWARESTATUS_*` Client 构建元数据。若 manifest 含 `io.hermesstatus.*`
+标签或 `HERMESSTATUS_CLIENT_*` / `HERMESSTATUS_UNIFI_CATALOG_*` 旧构建元数据，
+发布状态机将拒绝接受。Hermes Agent 监控仍作为独立的可选 Client 集成保留。
+
 ## Registry 状态与恢复
 
 发布器先认证 GHCR，再分别探测两个镜像的 manifest。只有认证成功后得到
@@ -60,6 +65,11 @@ workflow 仓库的关联。仓库所有者仍须具有创建 package 的权限�
 允许匿名拉取；私有 package 则要求每台部署主机另行获得 pull 凭证/访问授权，
 不得把凭证写入镜像或源码。Package 可见性和 Actions 访问属于 Registry
 设置，不能仅凭 workflow 推断已正确配置。
+
+待单独审核清理（本 workflow 不删除）：
+
+- `ghcr.io/404404/hermesstatus-server:2.7-83934eb3f692`
+- `ghcr.io/404404/hermesstatus-client:2.7-83934eb3f692`
 
 本 workflow 不创建正式 Release，不改旧 package 名称，不部署容器，也不修改
 已有 2.5/2.6/2.7 artifacts。

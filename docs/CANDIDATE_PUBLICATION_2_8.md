@@ -16,6 +16,12 @@ The publisher verifies OCI revision, component, platform, Catalog V2 revision,
 and Catalog bundle SHA256 before accepting an existing image. Image digests
 are reported after verification; consumers should pin those digests.
 
+New 2.8 outputs use only `io.hardwarestatus.*` product/Catalog labels and
+`HARDWARESTATUS_*` Client build metadata. A manifest containing
+`io.hermesstatus.*` labels or legacy `HERMESSTATUS_CLIENT_*` /
+`HERMESSTATUS_UNIFI_CATALOG_*` build metadata is rejected. Hermes Agent
+monitoring remains a separate optional Client integration.
+
 ## Registry state and recovery
 
 The publisher authenticates to GHCR and probes each image manifest
@@ -71,6 +77,11 @@ link. Public GHCR packages permit anonymous pulls. Private packages require a
 separately provisioned pull credential/access grant on each deployment host;
 never embed that credential in an image or source file. Package visibility and
 Actions access are registry settings, not guaranteed solely by this workflow.
+
+Pending cleanup review only (not deleted by this workflow):
+
+- `ghcr.io/404404/hermesstatus-server:2.7-83934eb3f692`
+- `ghcr.io/404404/hermesstatus-client:2.7-83934eb3f692`
 
 This workflow does not create a formal release, update old package names,
 deploy containers, or modify existing 2.5/2.6/2.7 artifacts.
