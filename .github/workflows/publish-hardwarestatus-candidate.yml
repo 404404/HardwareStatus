@@ -1,0 +1,321 @@
+name: Publish HardwareStatus 2.8 Candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Full SHA of the reviewed HardwareStatus PR head
+        required: true
+        type: string
+
+concurrency:
+  group: hardwarestatus-2.8-candidate-${{ inputs.source_sha }}
+  cancel-in-progress: false
+
+# No package-write permission is granted to source validation or build/test jobs.
+permissions:
+  contents: read
+
+jobs:
+  source:
+    if: ${{ github.ref == 'refs/heads/2.0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    outputs:
+      source_sha: ${{ steps.trust.outputs.SOURCE_SHA }}
+      pull_request: ${{ steps.trust.outputs.TRUSTED_PULL_REQUEST }}
+      ci_run_id: ${{ steps.trust.outputs.FULL_CI_RUN_ID }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 2.0
+          persist-credentials: false
+      - name: Verify trusted PR head and complete CI
+        id: trust
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          python3 scripts/validate_candidate_source.py --source-sha "$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+
+  catalog:
+    needs: source
+    if: ${{ needs.source.result == 'success' && github.ref == 'refs/heads/2.0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      revision: ${{ steps.lock.outputs.revision }}
+      schema_version: ${{ steps.lock.outputs.schema_version }}
+      sha256: ${{ steps.lock.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.source.outputs.source_sha }}
+          path: source
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Read and constrain Catalog lock
+        id: lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          lock = json.loads(Path("source/unifi-catalog.lock.json").read_text(encoding="utf-8"))
+          if lock.get("schema_version") != 2:
+              raise SystemExit("2.8 candidate requires locked Catalog schema V2")
+          print("revision=" + str(lock["revision"]))
+          print("schema_version=2")
+          print("sha256=" + str(lock["catalog_sha256"]))
+          PY
+      - uses: actions/checkout@v5
+        with:
+          repository: 404404/UniFi_Catalog
+          ref: ${{ steps.lock.outputs.revision }}
+          path: external/UniFi_Catalog
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Install Catalog validation dependency
+        run: python3 -m pip install --disable-pip-version-check --no-input -r external/UniFi_Catalog/requirements-dev.txt
+      - name: Clear checked-in Catalog bundle before staging the lock result
+        run: |
+          python3 - <<'PY'
+          import shutil
+          from pathlib import Path
+          target = Path("source/clients/unifi_catalog")
+          if target.is_symlink() or (target.exists() and not target.is_dir()):
+              raise SystemExit("unsafe Catalog staging directory")
+          shutil.rmtree(target, ignore_errors=True)
+          target.mkdir(parents=True)
+          PY
+      - name: Verify and stage exact locked Catalog bundle
+        run: |
+          set -euo pipefail
+          python3 source/scripts/acquire_unifi_catalog.py \
+            --source-dir external/UniFi_Catalog \
+            --output-dir source/clients/unifi_catalog
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hardwarestatus-2.8-catalog-${{ needs.source.outputs.source_sha }}
+          path: source/clients/unifi_catalog
+          if-no-files-found: error
+
+  validate:
+    needs: [source, catalog]
+    if: ${{ needs.source.result == 'success' && needs.catalog.result == 'success' && github.ref == 'refs/heads/2.0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 2.0
+          persist-credentials: false
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.source.outputs.source_sha }}
+          path: source
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Clear checked-in Catalog bundle before artifact download
+        run: |
+          python3 - <<'PY'
+          import shutil
+          from pathlib import Path
+          target = Path("source/clients/unifi_catalog")
+          if target.is_symlink() or (target.exists() and not target.is_dir()):
+              raise SystemExit("unsafe Catalog staging directory")
+          shutil.rmtree(target, ignore_errors=True)
+          target.mkdir(parents=True)
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: hardwarestatus-2.8-catalog-${{ needs.source.outputs.source_sha }}
+          path: source/clients/unifi_catalog
+      - name: Verify immutable source input
+        env:
+          EXPECTED_SHA: ${{ needs.source.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          test "$EXPECTED_SHA" = "$(git -C source rev-parse HEAD)"
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: source/server/go.mod
+          cache-dependency-path: source/server/go.sum
+      - name: Bootstrap workflow and state-machine tests
+        run: python3 -m unittest discover -s scripts/tests -p 'test_candidate_*.py'
+      - run: python3 source/scripts/validate_migration_contracts.py
+      - run: python3 -m unittest discover -s source/clients -p 'test_*.py'
+      - run: python3 -m unittest discover -s source/scripts/tests -p 'test_*.py'
+      - run: python3 -m py_compile source/clients/client-linux.py source/clients/client-psutil.py source/clients/host_collector.py source/scripts/export-hermes-status.py source/scripts/hermes_config_summary.py
+      - run: sh -n source/clients/entrypoint.sh && bash -n source/status.sh
+      - run: go test ./...
+        working-directory: source/server
+      - run: go test -race ./...
+        working-directory: source/server
+      - run: go vet ./...
+        working-directory: source/server
+      - run: go build ./...
+        working-directory: source/server
+      - run: find source/web -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+      - run: node --test source/web/js/app.test.js
+      - run: python3 source/scripts/check_release_boundaries.py
+      - run: python3 source/scripts/check_unifi_static_authority.py
+      - run: docker compose -f source/docker-compose-server.yml config --quiet
+      - run: SERVER=192.0.2.10 SERVERSTATUS_USER=ci-node PASSWORD=ci-placeholder docker compose -f source/docker-compose-client.yml config --quiet
+
+  publish:
+    needs: [source, catalog, validate]
+    if: ${{ needs.source.result == 'success' && needs.catalog.result == 'success' && needs.validate.result == 'success' && github.ref == 'refs/heads/2.0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: hardwarestatus-2.8-candidate-publish
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 2.0
+          persist-credentials: false
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.source.outputs.source_sha }}
+          path: source
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Clear checked-in Catalog bundle before artifact download
+        run: |
+          python3 - <<'PY'
+          import shutil
+          from pathlib import Path
+          target = Path("source/clients/unifi_catalog")
+          if target.is_symlink() or (target.exists() and not target.is_dir()):
+              raise SystemExit("unsafe Catalog staging directory")
+          shutil.rmtree(target, ignore_errors=True)
+          target.mkdir(parents=True)
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: hardwarestatus-2.8-catalog-${{ needs.source.outputs.source_sha }}
+          path: source/clients/unifi_catalog
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Probe and classify each immutable image independently
+        id: plan
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ needs.source.outputs.source_sha }}
+          CATALOG_REVISION: ${{ needs.catalog.outputs.revision }}
+          CATALOG_SCHEMA_VERSION: ${{ needs.catalog.outputs.schema_version }}
+          CATALOG_SHA256: ${{ needs.catalog.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          python3 scripts/candidate_publish_state.py plan \
+            --source-sha "$SOURCE_SHA" \
+            --catalog-revision "$CATALOG_REVISION" \
+            --catalog-schema-version "$CATALOG_SCHEMA_VERSION" \
+            --catalog-sha256 "$CATALOG_SHA256" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        id: server_image
+        if: ${{ steps.plan.outputs.PUBLISH_SERVER == 'true' }}
+        with:
+          context: source
+          file: source/Dockerfile.server
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/404404/hardwarestatus-server:${{ steps.plan.outputs.CANDIDATE_TAG }}
+          labels: |
+            org.opencontainers.image.title=HardwareStatus Server
+            org.opencontainers.image.version=2.8
+            org.opencontainers.image.revision=${{ needs.source.outputs.source_sha }}
+            org.opencontainers.image.created=${{ steps.plan.outputs.CREATED }}
+            org.opencontainers.image.source=https://github.com/404404/HardwareStatus
+            org.opencontainers.image.licenses=MIT
+            io.hardwarestatus.component=server
+            io.hermesstatus.component=server
+            io.hardwarestatus.unifi.catalog.revision=${{ needs.catalog.outputs.revision }}
+            io.hardwarestatus.unifi.catalog.schema_version=2
+            io.hardwarestatus.unifi.catalog.sha256=${{ needs.catalog.outputs.sha256 }}
+            io.hermesstatus.unifi.catalog.revision=${{ needs.catalog.outputs.revision }}
+            io.hermesstatus.unifi.catalog.schema_version=2
+            io.hermesstatus.unifi.catalog.sha256=${{ needs.catalog.outputs.sha256 }}
+          build-args: |
+            VERSION=2.8
+            VCS_REF=${{ needs.source.outputs.source_sha }}
+            BUILD_DATE=${{ steps.plan.outputs.CREATED }}
+            SOURCE_URL=https://github.com/404404/HardwareStatus
+            CATALOG_REVISION=${{ needs.catalog.outputs.revision }}
+            CATALOG_SCHEMA_VERSION=2
+            CATALOG_SHA256=${{ needs.catalog.outputs.sha256 }}
+      - uses: docker/build-push-action@v6
+        id: client_image
+        if: ${{ steps.plan.outputs.PUBLISH_CLIENT == 'true' }}
+        with:
+          context: source
+          file: source/Dockerfile.client
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/404404/hardwarestatus-client:${{ steps.plan.outputs.CANDIDATE_TAG }}
+          labels: |
+            org.opencontainers.image.title=HardwareStatus Client
+            org.opencontainers.image.version=2.8
+            org.opencontainers.image.revision=${{ needs.source.outputs.source_sha }}
+            org.opencontainers.image.created=${{ steps.plan.outputs.CREATED }}
+            org.opencontainers.image.source=https://github.com/404404/HardwareStatus
+            org.opencontainers.image.licenses=MIT
+            io.hardwarestatus.component=client
+            io.hermesstatus.component=client
+            io.hardwarestatus.unifi.catalog.revision=${{ needs.catalog.outputs.revision }}
+            io.hardwarestatus.unifi.catalog.schema_version=2
+            io.hardwarestatus.unifi.catalog.sha256=${{ needs.catalog.outputs.sha256 }}
+            io.hermesstatus.unifi.catalog.revision=${{ needs.catalog.outputs.revision }}
+            io.hermesstatus.unifi.catalog.schema_version=2
+            io.hermesstatus.unifi.catalog.sha256=${{ needs.catalog.outputs.sha256 }}
+          build-args: |
+            VERSION=2.8
+            VCS_REF=${{ needs.source.outputs.source_sha }}
+            BUILD_DATE=${{ steps.plan.outputs.CREATED }}
+            SOURCE_URL=https://github.com/404404/HardwareStatus
+            CATALOG_REVISION=${{ needs.catalog.outputs.revision }}
+            CATALOG_SCHEMA_VERSION=2
+            CATALOG_SHA256=${{ needs.catalog.outputs.sha256 }}
+      - name: Verify both immutable manifests and report digests
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ needs.source.outputs.source_sha }}
+          CATALOG_REVISION: ${{ needs.catalog.outputs.revision }}
+          CATALOG_SCHEMA_VERSION: ${{ needs.catalog.outputs.schema_version }}
+          CATALOG_SHA256: ${{ needs.catalog.outputs.sha256 }}
+          CREATED: ${{ steps.plan.outputs.CREATED }}
+        run: |
+          set -euo pipefail
+          python3 scripts/candidate_publish_state.py verify \
+            --source-sha "$SOURCE_SHA" \
+            --catalog-revision "$CATALOG_REVISION" \
+            --catalog-schema-version "$CATALOG_SCHEMA_VERSION" \
+            --catalog-sha256 "$CATALOG_SHA256" \
+            --created "$CREATED"
