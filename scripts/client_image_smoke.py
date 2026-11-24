@@ -216,6 +216,23 @@ def _container_state(name):
     }
 
 
+def _safe_client_exit_summary(name, state):
+    """Expose only bounded, allowlisted diagnostics from a failed test Client."""
+    summary = "exit_code=" + str(state.get("exit_code"))
+    logs = _run(["docker", "logs", "--tail", "30", name], check=False, timeout=15)
+    allowed = (
+        re.compile(r"^Client configuration error: (invalid_device_v2_configuration)$"),
+        re.compile(r"^device_v2 transport: ([a-z0-9_]{1,64})$"),
+    )
+    for line in (logs.stdout + "\n" + logs.stderr).splitlines():
+        for pattern in allowed:
+            match = pattern.fullmatch(line.strip())
+            if match:
+                summary += " diagnostic=" + match.group(1)
+                return summary
+    return summary
+
+
 def _wait_for_server_health(name, timeout_seconds=60):
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
@@ -244,7 +261,11 @@ def _wait_for_accepted_report(server_name, client_name, device_id, arguments):
     while time.monotonic() < deadline:
         state = _container_state(client_name)
         if not state["running"] or state["restart_count"] != 0:
-            raise SmokeFailure("actual Client entrypoint exited or restarted")
+            raise SmokeFailure(
+                "actual Client entrypoint exited or restarted ("
+                + _safe_client_exit_summary(client_name, state)
+                + ")"
+            )
         snapshot = _server_stats(server_name)
         devices = snapshot.get("servers")
         if isinstance(devices, list):
@@ -389,7 +410,11 @@ def run_smoke(arguments):
             time.sleep(3)
             state = _container_state(client_name)
             if not state["running"] or state["restart_count"] != 0:
-                raise SmokeFailure("Client did not remain healthy after its first report")
+                raise SmokeFailure(
+                    "Client did not remain healthy after its first report ("
+                    + _safe_client_exit_summary(client_name, state)
+                    + ")"
+                )
             print("CLIENT_IMAGE_SMOKE=PASS")
             print("DEVICE_V2_REPORT=ACCEPTED")
             print("DEVICE_ID=" + device_id)
