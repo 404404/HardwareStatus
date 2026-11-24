@@ -231,7 +231,14 @@ jobs:
 
   publish:
     needs: [catalog, contracts, go, python, frontend, compose, security, images]
-    if: ${{ needs.images.result == 'success' && github.repository == '404404/HardwareStatus' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && startsWith(github.ref, 'refs/heads/codex/2.7-') }}
+    if: >-
+      ${{
+        needs.images.result == 'success' &&
+        (
+          (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/codex/2.7-')) ||
+          (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/codex/2.7-'))
+        )
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
