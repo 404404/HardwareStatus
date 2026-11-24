@@ -385,8 +385,10 @@ def parse_unified_document(document: Mapping[str, Any]) -> dict[str, Any]:
     return values
 
 
-def default_device_token_path(is_file=os.path.isfile) -> str:
+def default_device_token_path(is_file=None) -> str:
     """Prefer the new fixed token path, retaining old Compose mounts on upgrade."""
+    if is_file is None:
+        is_file = os.path.isfile
     if is_file(CANONICAL_DEVICE_TOKEN_PATH):
         return CANONICAL_DEVICE_TOKEN_PATH
     if is_file(LEGACY_DEVICE_TOKEN_PATH):
