@@ -3,9 +3,12 @@
 2.8 候选发布器使用 `workflow_dispatch`，因此 workflow 必须先存在于默认
 `2.0` 分支。只能在 `2.0` 上调度，并提供一个输入：同仓库、目标为
 `2.0` 的当前非 Draft PR HEAD 完整小写 SHA（或该 PR 已合并的 HEAD）。
-源码门禁还要求该 SHA/PR 对应的最新 `CI` pull-request run 成功，且
-`contracts`、`go`、`python`、`client-runtime`、`frontend`、`compose`、`images`、
-`security` 任务全部成功。workflow 按固定 SHA checkout/build，不跟随可移动分支名。
+源码门禁还要求该精确 SHA 的最新 `CI` run 成功：可以是关联此 PR 的
+`pull_request` run，或在该 PR 当前 HEAD 分支上手动调度的 `CI` run。两种形式都必须
+通过 `contracts`、`go`、`python`、`client-runtime`、`frontend`、`compose`、`images`、
+`security` 全部任务。若自动 PR 事件未生成，受信任维护者可对同一 SHA 运行完整 CI；
+门禁仍会校验当前 PR HEAD、仓库与分支，不能使用其他分支或过期 SHA。workflow 按固定
+SHA checkout/build，不跟随可移动分支名。
 `client-runtime` 被列为显式必需 job，未完成 Python 3.8 运行时检查的 CI 不得取得
 候选镜像发布资格。
 
