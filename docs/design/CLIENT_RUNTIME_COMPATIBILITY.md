@@ -4,11 +4,11 @@
 
 The 2.8 Client image remains based on `alpine:3.13`, whose packaged Python
 runtime is Python 3.8. The first repository commit that introduced this base
-was `b8baa951` (2026-07-14, “Complete HermesStatus Release A host data
-pipeline”). Its Dockerfile comments explain the `smartmontools` and
-`util-linux` packages, but the commit and current documentation do not record
-why Alpine 3.13 was selected or pinned. It is therefore not a verified
-Synology-specific requirement.
+was `d1ad6b0` (2026-02-27, “client alpine images”). Its Dockerfile diff
+replaced `python:3.11-slim` plus apt/pip-installed tools with Alpine and
+apk-packaged Python, psutil, iproute2, and procps. Neither that commit nor
+current documentation records an explicit reason for choosing or pinning
+Alpine 3.13; this is not a verified Synology-specific requirement.
 
 This hotfix preserves the existing base because the observed failure is an
 application API-compatibility bug, not evidence that the base image is
@@ -21,10 +21,13 @@ repair.
 
 ## Required checks
 
-The `client-runtime` CI job runs the complete Client unit suite and compiles
-all Python files copied into the image with Python 3.8. It also exercises the
-build-metadata alias cases, Catalog V2 and USP-RPS fixtures, and Pro Max 24 PoE
-resolution through those tests.
+The `client-runtime` CI job first reproduces the failed candidate's
+`removeprefix` exception from its exact historical source SHA, then runs the
+complete Client unit suite and compiles all Python files copied into the image
+with Python 3.8. A static compatibility test scopes known post-3.8 APIs and
+runtime-evaluated annotations to files copied by `Dockerfile.client`. The suite
+also exercises canonical/legacy metadata, Catalog V2 and USP-RPS fixtures, and
+Pro Max 24 PoE resolution.
 
 The `images` job builds the actual `linux/amd64` Server and Client images,
 checks their revision and Catalog labels, records the Client image's Python

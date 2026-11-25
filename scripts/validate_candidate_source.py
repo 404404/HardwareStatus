@@ -16,7 +16,7 @@ from urllib.request import Request, urlopen
 TRUSTED_REPOSITORY = "404404/HardwareStatus"
 BASE_BRANCH = "2.0"
 REQUIRED_CI_JOBS = frozenset(
-    {"contracts", "go", "python", "frontend", "compose", "images", "security"}
+    {"contracts", "go", "python", "client-runtime", "frontend", "compose", "images", "security"}
 )
 SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 

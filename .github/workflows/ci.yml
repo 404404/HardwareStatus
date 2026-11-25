@@ -113,6 +113,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
           name: hardwarestatus-ci-catalog
@@ -122,6 +124,34 @@ jobs:
           python-version: "3.8"
       - name: Install the Client's runtime test dependencies
         run: python3 -m pip install --disable-pip-version-check --no-input "psutil==6.1.1" "PyYAML==6.0.2"
+      - name: Reproduce the failed candidate's Python 3.8 metadata crash
+        shell: bash
+        run: |
+          set -euo pipefail
+          old_source="$RUNNER_TEMP/failed-host-collector.py"
+          git show 05d5d51e943bad1a46d181f63b8496b0752de3be:clients/host_collector.py > "$old_source"
+          PYTHONPATH="$GITHUB_WORKSPACE/clients" FAILED_HOST_COLLECTOR="$old_source" python3 - <<'PY'
+          import importlib.util
+          import os
+
+          path = os.environ["FAILED_HOST_COLLECTOR"]
+          spec = importlib.util.spec_from_file_location("failed_candidate_host_collector", path)
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          metadata = {
+              "HARDWARESTATUS_CLIENT_VERSION": "2.8",
+              "HARDWARESTATUS_CLIENT_REVISION": "a" * 40,
+              "HARDWARESTATUS_CLIENT_PROTOCOL": "device_v2",
+          }
+          try:
+              module.collect_client_build(metadata)
+          except AttributeError as error:
+              if "removeprefix" not in str(error):
+                  raise
+              print("FAILED_CANDIDATE_REPRODUCED=PASS")
+          else:
+              raise SystemExit("failed candidate no longer reproduces the known Python 3.8 error")
+          PY
       - name: Run all Client tests on Python 3.8
         run: python3 -m unittest discover -s clients -p 'test_*.py'
       - name: Compile every Python source copied into the Client image
