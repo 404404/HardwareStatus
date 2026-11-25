@@ -18,7 +18,11 @@ PR = {
     "state": "open",
     "draft": False,
     "merged_at": None,
-    "head": {"sha": SHA, "repo": {"full_name": MODULE.TRUSTED_REPOSITORY}},
+    "head": {
+        "sha": SHA,
+        "ref": "codex/runtime-compatibility-hotfix",
+        "repo": {"full_name": MODULE.TRUSTED_REPOSITORY},
+    },
     "base": {"ref": "2.0"},
 }
 
@@ -78,21 +82,48 @@ class CandidateSourceValidationTests(unittest.TestCase):
             "status": "completed",
             "conclusion": "success",
         }
-        self.assertEqual(MODULE.select_latest_ci_run([good], 40, SHA)["id"], 101)
+        head_ref = PR["head"]["ref"]
+        self.assertEqual(MODULE.select_latest_ci_run([good], 40, SHA, head_ref)["id"], 101)
         newer_pending = {**good, "id": 102, "run_number": 11, "status": "in_progress", "conclusion": None}
         with self.assertRaises(MODULE.SourceValidationError):
-            MODULE.select_latest_ci_run([good, newer_pending], 40, SHA)
+            MODULE.select_latest_ci_run([good, newer_pending], 40, SHA, head_ref)
 
-    def test_runs_for_other_pr_or_event_do_not_qualify(self):
+    def test_manual_full_ci_for_exact_trusted_pr_head_is_accepted(self):
+        run = {
+            "id": 103,
+            "run_number": 12,
+            "run_attempt": 1,
+            "head_sha": SHA,
+            "event": "workflow_dispatch",
+            "head_branch": PR["head"]["ref"],
+            "status": "completed",
+            "conclusion": "success",
+        }
+        self.assertEqual(
+            MODULE.select_latest_ci_run([run], 40, SHA, PR["head"]["ref"])["id"],
+            103,
+        )
+
+    def test_runs_for_wrong_pr_branch_sha_or_event_do_not_qualify(self):
         run = {
             "head_sha": SHA,
             "event": "workflow_dispatch",
-            "pull_requests": [{"number": 40}],
+            "head_branch": "codex/unrelated",
             "status": "completed",
             "conclusion": "success",
         }
         with self.assertRaises(MODULE.SourceValidationError):
-            MODULE.select_latest_ci_run([run], 40, SHA)
+            MODULE.select_latest_ci_run([run], 40, SHA, PR["head"]["ref"])
+
+        run["head_branch"] = PR["head"]["ref"]
+        run["head_sha"] = "b" * 40
+        with self.assertRaises(MODULE.SourceValidationError):
+            MODULE.select_latest_ci_run([run], 40, SHA, PR["head"]["ref"])
+
+        run["head_sha"] = SHA
+        run["event"] = "push"
+        with self.assertRaises(MODULE.SourceValidationError):
+            MODULE.select_latest_ci_run([run], 40, SHA, PR["head"]["ref"])
 
 
 if __name__ == "__main__":
