@@ -212,6 +212,7 @@ jobs:
           name: hardwarestatus-ci-catalog
           path: clients/unifi_catalog
       - uses: docker/setup-buildx-action@v3
+      # The image smoke uses Node to render Server-projected UniFi HTML.
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
