@@ -3,11 +3,7 @@
 2.8 候选发布器使用 `workflow_dispatch`，因此 workflow 必须先存在于默认
 `2.0` 分支。只能在 `2.0` 上调度，并提供一个输入：同仓库、目标为
 `2.0` 的当前非 Draft PR HEAD 完整小写 SHA（或该 PR 已合并的 HEAD）。
-源码门禁还要求该 SHA/PR 对应的最新 `CI` pull-request run 成功，且
-`contracts`、`go`、`python`、`client-runtime`、`frontend`、`compose`、`images`、
-`security` 任务全部成功。`client-runtime` 使用 Python 3.8 运行完整 Client 测试；
-`images` 依赖该任务，并在隔离 Server 上启动真实镜像、通过认证提交 Device v2 报告。
-workflow 按固定 SHA checkout/build，不跟随可移动分支名。
+源码门禁要求该精确 SHA 的最新完整 `CI` run 已完成且成功：可以是关联此 PR 的 `pull_request` run，也可以是在 PR 当前 HEAD 分支手动调度的 `workflow_dispatch` run。两种方式都必须通过 `contracts`、`go`、`python`、`client-runtime`、`frontend`、`compose`、`images`、`security` 全部任务。手动回退只对当前 PR 的精确 HEAD SHA 与分支有效，不能用过期 SHA 或其他分支取得资格。本轮第三组候选资格要求真实的 `pull_request` run；不得用 `workflow_dispatch` run 替代。 `client-runtime` 使用 Python 3.8 运行完整 Client 测试；`images` 依赖该任务，在隔离 Server 上启动实际镜像并通过认证提交 Device v2 报告。workflow 按固定 SHA checkout/build，不跟随可移动分支名。
 
 发布范围严格限定为 `ghcr.io/404404/hardwarestatus-server` 和
 `ghcr.io/404404/hardwarestatus-client`，标签为

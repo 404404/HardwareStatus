@@ -16,7 +16,16 @@ from urllib.request import Request, urlopen
 TRUSTED_REPOSITORY = "404404/HardwareStatus"
 BASE_BRANCH = "2.0"
 REQUIRED_CI_JOBS = frozenset(
-    {"contracts", "go", "python", "client-runtime", "frontend", "compose", "images", "security"}
+    {
+        "contracts",
+        "go",
+        "python",
+        "client-runtime",
+        "frontend",
+        "compose",
+        "images",
+        "security",
+    }
 )
 SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 
@@ -52,7 +61,9 @@ def select_trusted_pull_request(pulls: list[dict], source_sha: str) -> dict:
     return matches[0]
 
 
-def select_latest_ci_run(runs: list[dict], pull_number: int, source_sha: str) -> dict:
+def select_latest_ci_run(
+    runs: list[dict], pull_number: int, source_sha: str, head_ref: str
+) -> dict:
     matches = []
     for run in runs:
         pull_numbers = {
@@ -60,14 +71,18 @@ def select_latest_ci_run(runs: list[dict], pull_number: int, source_sha: str) ->
             for item in (run.get("pull_requests") or [])
             if isinstance(item, dict)
         }
+        event = run.get("event")
+        belongs_to_pr = event == "pull_request" and pull_number in pull_numbers
+        manually_dispatched_for_pr_head = (
+            event == "workflow_dispatch" and run.get("head_branch") == head_ref
+        )
         if (
             run.get("head_sha") == source_sha
-            and run.get("event") == "pull_request"
-            and pull_number in pull_numbers
+            and (belongs_to_pr or manually_dispatched_for_pr_head)
         ):
             matches.append(run)
     if not matches:
-        raise SourceValidationError("no pull_request CI run exists for the exact source SHA")
+        raise SourceValidationError("no accepted CI run exists for the exact source SHA and PR head")
     latest = max(matches, key=lambda item: (item.get("run_number", 0), item.get("run_attempt", 0)))
     if latest.get("status") != "completed" or latest.get("conclusion") != "success":
         raise SourceValidationError("latest full CI run for the exact source SHA is not successful")
@@ -120,18 +135,21 @@ def verify_source(source_sha: str, token: str) -> tuple[int, int]:
         raise SourceValidationError("GitHub returned an invalid pull request response")
     pull = select_trusted_pull_request(pulls, source_sha)
     pull_number = pull.get("number")
+    head_ref = (pull.get("head") or {}).get("ref")
     if not isinstance(pull_number, int):
         raise SourceValidationError("trusted pull request has no valid number")
+    if not isinstance(head_ref, str) or not head_ref:
+        raise SourceValidationError("trusted pull request has no valid head branch")
 
     workflow_runs = _get_json(
         f"/repos/{TRUSTED_REPOSITORY}/actions/workflows/ci.yml/runs",
         token,
-        {"head_sha": source_sha, "event": "pull_request", "per_page": "100"},
+        {"head_sha": source_sha, "per_page": "100"},
     )
     runs = workflow_runs.get("workflow_runs") if isinstance(workflow_runs, dict) else None
     if not isinstance(runs, list):
         raise SourceValidationError("GitHub returned an invalid CI runs response")
-    run = select_latest_ci_run(runs, pull_number, source_sha)
+    run = select_latest_ci_run(runs, pull_number, source_sha, head_ref)
     run_id = run.get("id")
     if not isinstance(run_id, int):
         raise SourceValidationError("successful CI run has no valid ID")
