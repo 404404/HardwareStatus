@@ -1,11 +1,15 @@
 # Canonical Compose contract
 
-The repository is HardwareStatus. Existing Compose variable names, container
-names, mount paths, and GHCR packages beginning with `hermesstatus` are
-compatibility contracts and remain unchanged.
+New deployments use canonical `hardwarestatus-*` service/container names,
+`ghcr.io/404404/hardwarestatus-*` packages, and `HARDWARESTATUS_*` tag/config
+variables. New container-internal defaults use `/etc/hardwarestatus`,
+`/run/secrets/hardwarestatus`, and `/run/hardwarestatus`. The examples retain
+old in-container credential targets as read-only aliases to the same host
+files; existing host-side source paths and persistent host directories remain
+unchanged. See [the migration contract](../../docs/RENAME_COMPATIBILITY.md).
 
-Published deployments set `HERMESSTATUS_SERVER_TAG` and
-`HERMESSTATUS_CLIENT_TAG` to the same approved candidate revision. Prefer an
+New deployment templates use `HARDWARESTATUS_SERVER_TAG` and
+`HARDWARESTATUS_CLIENT_TAG` for the same approved candidate revision. Prefer an
 exact image digest in the final Compose service; do not use `latest`, an
 unqualified broad version tag, or local qualification tags. Verify the Server
 and Client OCI revision before creating either container.
@@ -13,20 +17,20 @@ and Client OCI revision before creating either container.
 Mount unified Client configuration read-only as:
 
 ```text
-Linux/GK50:  /home/hermes/status/config/client-config.json:/run/secrets/hermesstatus/client-config.json:ro
-Synology DSM: /volume1/docker/status/config/client-config.json:/run/secrets/hermesstatus/client-config.json:ro
+Linux/GK50:  /home/hermes/status/config/client-config.json:/run/secrets/hardwarestatus/client-config.json:ro
+Synology DSM: /volume1/docker/status/config/client-config.json:/run/secrets/hardwarestatus/client-config.json:ro
 ```
 
 Mount the Device v2 token separately:
 
 ```text
-/etc/hermesstatus/secrets/device-token:/run/secrets/hermesstatus-device-token:ro
+/etc/hermesstatus/secrets/device-token:/run/secrets/hardwarestatus-device-token:ro
 ```
 
 The Client needs a private tmpfs:
 
 ```text
-/run/hermesstatus:size=4m,mode=0700,nosuid,nodev,noexec
+/run/hardwarestatus:size=4m,mode=0700,nosuid,nodev,noexec
 ```
 
 Do not pass collector secrets through environment values or command arguments.

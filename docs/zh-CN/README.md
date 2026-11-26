@@ -6,8 +6,8 @@
 改进。它们说明当前源码行为，不代表新的稳定版发布，也不能替代候选镜像 provenance
 要求。
 
-仓库公开名称为 HardwareStatus。为保证现有部署兼容，所有以 `hermesstatus` 开头的运行时
-名称仍保持不变，详见根目录 [README](../../README.md)。
+新部署资源与未来 GHCR 包统一使用 HardwareStatus 命名。已有兼容接口在迁移期继续有效；
+详见[命名兼容与迁移](RENAME_COMPATIBILITY.md)和根目录 [README](../../README.md)。
 
 | 文档 | 内容 |
 | --- | --- |
@@ -18,8 +18,11 @@
 | [安全](SECURITY.md) | 信任边界、秘密、TLS/SSH 与最小权限。 |
 | [运维](OPERATIONS.md) | freshness、诊断、备份恢复与排障。 |
 | [开发](DEVELOPMENT.md) | 检查、文档要求与 PR 流程。 |
+| [命名兼容与迁移](RENAME_COMPATIBILITY.md) | 新名称、保留别名与安全单 writer 迁移。 |
+| [2.8 候选发布](CANDIDATE_PUBLICATION_2_8.md) | 精确 SHA 源码信任、CI 门禁、不可变镜像与受保护审批。 |
 | [EasyTier 设计](EASYTIER_MONITORING.md) | 只读采集、汇总/展示上限与不确定性。 |
 | [硬件设计](HARDWARE_MONITORING.md) | SMART、文件系统、资源诊断与安全回退。 |
+| [Client 运行时兼容性](design/CLIENT_RUNTIME_COMPATIBILITY.md) | Python 3.8 镜像契约与真实镜像 smoke 门禁。 |
 | [UniFi 设计](UNIFI_MONITORING.md) | Catalog 权威性、运行时身份、WAN/端口归属与只读传输。 |
 
 同一次文档更新中应保持中英文语义同步。

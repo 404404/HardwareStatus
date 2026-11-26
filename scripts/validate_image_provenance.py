@@ -20,9 +20,12 @@ REQUIRED_LABELS = (
 )
 SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 CATALOG_SHA_PATTERN = re.compile(r"^[0-9a-f]{64}$")
-PRODUCT_VERSION_PATTERN = re.compile(r"^(?:2\.5|2\.6|2\.7)$")
-CANDIDATE_TAG_PATTERN = re.compile(r"^(?P<version>2\.5|2\.6|2\.7)-(?P<revision>[0-9a-f]{12})$")
-COMPONENT_LABEL = "io.hermesstatus.component"
+PRODUCT_VERSION_PATTERN = re.compile(r"^2\.[0-9]+$")
+CANDIDATE_TAG_PATTERN = re.compile(r"^(?P<version>2\.[0-9]+)-(?P<revision>[0-9a-f]{12})$")
+COMPONENT_LABEL = "io.hardwarestatus.component"
+LEGACY_COMPONENT_LABEL = "io.hermesstatus.component"
+LEGACY_IDENTITY_LABEL_PREFIX = "io.hermesstatus."
+LEGACY_BUILD_ENV_PREFIXES = ("HERMESSTATUS_CLIENT_", "HERMESSTATUS_UNIFI_CATALOG_")
 SECRET_PATTERN = re.compile(
     r"(?i)(authorization\s*:|bearer\s+|api[_-]?key|password|private[_-]?key|token[_-]?secret)"
 )
@@ -57,7 +60,7 @@ def validate_created(value: str) -> None:
 
 def validate_candidate_tag(candidate_tag: str, product_version: str, revision: str) -> None:
     if not PRODUCT_VERSION_PATTERN.fullmatch(product_version):
-        raise ValidationError("product version must be a formal 2.5, 2.6, or 2.7 release line")
+        raise ValidationError("product version must use the formal 2.x release line")
     match = CANDIDATE_TAG_PATTERN.fullmatch(candidate_tag)
     if match is None:
         raise ValidationError("candidate tag must use a formal release line followed by a 12-character lowercase Git SHA")
@@ -75,39 +78,103 @@ def environment_values(config: dict) -> dict:
     return values
 
 
+def _requires_hardwarestatus_only(version: str) -> bool:
+    try:
+        major, minor = (int(part) for part in version.split(".", 1))
+    except (AttributeError, TypeError, ValueError):
+        return False
+    return major > 2 or (major == 2 and minor >= 8)
+
+
+def validate_hardwarestatus_only_identity(config: dict) -> None:
+    labels = config.get("Labels") or {}
+    if any(isinstance(key, str) and key.startswith(LEGACY_IDENTITY_LABEL_PREFIX) for key in labels):
+        raise ValidationError("new image contains a legacy HermesStatus OCI identity label")
+    values = environment_values(config)
+    if any(key.startswith(LEGACY_BUILD_ENV_PREFIXES) for key in values):
+        raise ValidationError("new image contains legacy HermesStatus build metadata")
+
+
 def validate_client_runtime(config: dict, *, version: str, revision: str, created: str) -> None:
+    if _requires_hardwarestatus_only(version):
+        validate_hardwarestatus_only_identity(config)
     values = environment_values(config)
     expected = {
-        "HERMESSTATUS_CLIENT_VERSION": version,
-        "HERMESSTATUS_CLIENT_REVISION": revision,
-        "HERMESSTATUS_CLIENT_BUILD_TIME": created,
+        "HARDWARESTATUS_CLIENT_VERSION": version,
+        "HARDWARESTATUS_CLIENT_REVISION": revision,
+        "HARDWARESTATUS_CLIENT_BUILD_TIME": created,
     }
     for key, value in expected.items():
         if values.get(key) != value:
             raise ValidationError("client runtime %s does not match the build input" % key)
+    for canonical, legacy in (
+        ("HARDWARESTATUS_CLIENT_VERSION", "HERMESSTATUS_CLIENT_VERSION"),
+        ("HARDWARESTATUS_CLIENT_REVISION", "HERMESSTATUS_CLIENT_REVISION"),
+        ("HARDWARESTATUS_CLIENT_BUILD_TIME", "HERMESSTATUS_CLIENT_BUILD_TIME"),
+    ):
+        if legacy in values and values[legacy] != values[canonical]:
+            raise ValidationError("legacy client runtime alias conflicts with canonical metadata")
 
 def validate_catalog_provenance(config: dict, *, revision: str, schema_version: int, sha256: str) -> None:
     labels = config.get("Labels") or {}
-    expected_labels = {
-        "io.hermesstatus.unifi.catalog.revision": revision,
-        "io.hermesstatus.unifi.catalog.schema_version": str(schema_version),
-        "io.hermesstatus.unifi.catalog.sha256": sha256,
-    }
-    for key, value in expected_labels.items():
-        if labels.get(key) != value:
-            raise ValidationError("client Catalog label %s does not match the build input" % key)
+    hardwarestatus_only = _requires_hardwarestatus_only(
+        str(labels.get("org.opencontainers.image.version", ""))
+    )
+    validate_catalog_labels(
+        config,
+        revision=revision,
+        schema_version=schema_version,
+        sha256=sha256,
+        hardwarestatus_only=hardwarestatus_only,
+    )
+    if hardwarestatus_only:
+        validate_hardwarestatus_only_identity(config)
     values = environment_values(config)
     expected_environment = {
-        "HERMESSTATUS_UNIFI_CATALOG_REVISION": revision,
-        "HERMESSTATUS_UNIFI_CATALOG_SCHEMA_VERSION": str(schema_version),
-        "HERMESSTATUS_UNIFI_CATALOG_SHA256": sha256,
+        "HARDWARESTATUS_UNIFI_CATALOG_REVISION": revision,
+        "HARDWARESTATUS_UNIFI_CATALOG_SCHEMA_VERSION": str(schema_version),
+        "HARDWARESTATUS_UNIFI_CATALOG_SHA256": sha256,
     }
     for key, value in expected_environment.items():
         if values.get(key) != value:
             raise ValidationError("client Catalog runtime %s does not match the build input" % key)
+    for canonical, legacy in (
+        ("HARDWARESTATUS_UNIFI_CATALOG_REVISION", "HERMESSTATUS_UNIFI_CATALOG_REVISION"),
+        ("HARDWARESTATUS_UNIFI_CATALOG_SCHEMA_VERSION", "HERMESSTATUS_UNIFI_CATALOG_SCHEMA_VERSION"),
+        ("HARDWARESTATUS_UNIFI_CATALOG_SHA256", "HERMESSTATUS_UNIFI_CATALOG_SHA256"),
+    ):
+        if legacy in values and values[legacy] != values[canonical]:
+            raise ValidationError("legacy Catalog runtime alias conflicts with canonical metadata")
+
+
+def validate_catalog_labels(
+    config: dict,
+    *,
+    revision: str,
+    schema_version: int,
+    sha256: str,
+    hardwarestatus_only: bool = False,
+) -> None:
+    labels = config.get("Labels") or {}
+    if hardwarestatus_only and any(
+        isinstance(key, str) and key.startswith(LEGACY_IDENTITY_LABEL_PREFIX) for key in labels
+    ):
+        raise ValidationError("new image contains a legacy HermesStatus Catalog label")
+    expected_labels = {
+        "io.hardwarestatus.unifi.catalog.revision": revision,
+        "io.hardwarestatus.unifi.catalog.schema_version": str(schema_version),
+        "io.hardwarestatus.unifi.catalog.sha256": sha256,
+    }
+    for key, value in expected_labels.items():
+        if labels.get(key) != value:
+            raise ValidationError("client Catalog label %s does not match the build input" % key)
+    for suffix, expected in (("revision", revision), ("schema_version", str(schema_version)), ("sha256", sha256)):
+        legacy_key = "io.hermesstatus.unifi.catalog." + suffix
+        if legacy_key in labels and labels[legacy_key] != expected:
+            raise ValidationError("legacy Catalog label conflicts with canonical metadata")
     if not SHA_PATTERN.fullmatch(revision) or not CATALOG_SHA_PATTERN.fullmatch(sha256):
         raise ValidationError("client Catalog provenance has an invalid digest")
-    if schema_version != 1:
+    if isinstance(schema_version, bool) or not isinstance(schema_version, int) or schema_version not in {1, 2}:
         raise ValidationError("unsupported client Catalog schema version")
 
 
@@ -117,10 +184,12 @@ def validate_component(config: dict, expected_component: str) -> None:
     labels = config.get("Labels") or {}
     if labels.get(COMPONENT_LABEL) != expected_component:
         raise ValidationError("image component label does not match the image role")
+    if LEGACY_COMPONENT_LABEL in labels and labels[LEGACY_COMPONENT_LABEL] != expected_component:
+        raise ValidationError("legacy image component label conflicts with canonical metadata")
 
 
 def parse_server_version(output: str) -> dict:
-    match = re.fullmatch(r"serverstatus (?P<version>[^\s]+) commit=(?P<revision>[^\s]+) built=(?P<created>[^\s]+)\s*", output)
+    match = re.fullmatch(r"hardwarestatus-server (?P<version>[^\s]+) commit=(?P<revision>[^\s]+) built=(?P<created>[^\s]+)\s*", output)
     if match is None:
         raise ValidationError("server --version output is invalid")
     return match.groupdict()
@@ -133,13 +202,22 @@ def validate_server_runtime_values(values: dict, *, version: str, revision: str,
 
 def validate_server_runtime(image: str, *, version: str, revision: str, created: str) -> None:
     result = subprocess.run(
-        ["docker", "run", "--rm", "--entrypoint", "/usr/local/bin/serverstatus", image, "--version"],
+        ["docker", "run", "--rm", "--entrypoint", "/usr/local/bin/hardwarestatus-server", image, "--version"],
         check=True,
         capture_output=True,
         text=True,
     )
     validate_server_runtime_values(
         parse_server_version(result.stdout), version=version, revision=revision, created=created
+    )
+    compatibility_result = subprocess.run(
+        ["docker", "run", "--rm", "--entrypoint", "/usr/local/bin/serverstatus", image, "--version"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    validate_server_runtime_values(
+        parse_server_version(compatibility_result.stdout), version=version, revision=revision, created=created
     )
 
 
@@ -155,6 +233,8 @@ def validate_inspect(
 ) -> dict:
     config = inspect.get("Config") or {}
     labels = config.get("Labels") or {}
+    if _requires_hardwarestatus_only(version):
+        validate_hardwarestatus_only_identity(config)
     missing = [key for key in REQUIRED_LABELS if not labels.get(key)]
     if missing:
         raise ValidationError("missing required OCI labels: " + ", ".join(missing))
@@ -214,6 +294,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--catalog-revision")
     parser.add_argument("--catalog-schema-version", type=int)
     parser.add_argument("--catalog-sha256")
+    parser.add_argument("--require-server-catalog-provenance", action="store_true")
     return parser.parse_args()
 
 
@@ -226,7 +307,7 @@ def main() -> int:
         server = validate_inspect(
             server_inspect,
             expected_title="HardwareStatus Server",
-            expected_entrypoint=["/usr/local/bin/serverstatus"],
+            expected_entrypoint=["/usr/local/bin/hardwarestatus-server"],
             version=args.version,
             revision=args.revision,
             created=args.created,
@@ -263,6 +344,15 @@ def main() -> int:
                 schema_version=args.catalog_schema_version,
                 sha256=args.catalog_sha256,
             )
+            if args.require_server_catalog_provenance:
+                validate_catalog_labels(
+                    server_inspect.get("Config") or {},
+                    revision=args.catalog_revision,
+                    schema_version=args.catalog_schema_version,
+                    sha256=args.catalog_sha256,
+                )
+        elif args.require_server_catalog_provenance:
+            raise ValidationError("server Catalog provenance requires the complete Catalog input tuple")
         validate_server_runtime(
             args.server_image,
             version=args.version,

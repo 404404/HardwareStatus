@@ -420,15 +420,89 @@ def _api_observation(raw, previous=None):
     return {"enabled": False, "status": "disabled", "last_attempt": None, "last_success": None, "endpoints": [], "summary": None, "error": None}
 
 
+def _api_and_rps_observation(raw, previous=None):
+    api = copy.deepcopy(_api_observation(raw, previous))
+    telemetry = api.get("telemetry") if isinstance(api, dict) else None
+    rps_raw = telemetry.pop("rps", None) if isinstance(telemetry, dict) else None
+    if isinstance(rps_raw, dict):
+        return api, _normalize_rps(rps_raw)
+    old_rps = previous.get("rps") if isinstance(previous, dict) else None
+    if isinstance(old_rps, dict):
+        old_rps = copy.deepcopy(old_rps)
+        old_rps["stale"] = True
+        for device in old_rps.get("devices", []):
+            if isinstance(device, dict):
+                device["stale"] = True
+    return api, old_rps if isinstance(old_rps, dict) else None
+
+
+def _normalize_rps(raw):
+    """Keep the optional RPS component bounded and separate from host power."""
+    if not isinstance(raw, dict):
+        return None
+    devices = []
+    for device in raw.get("devices", [])[:8] if isinstance(raw.get("devices"), list) else []:
+        if not isinstance(device, dict):
+            continue
+        ports = []
+        for port in device.get("ports", [])[:6] if isinstance(device.get("ports"), list) else []:
+            if not isinstance(port, dict):
+                continue
+            ports.append({
+                "index": port.get("index"),
+                "connection_state": port.get("connection_state", "unknown"),
+                "power_active": port.get("power_active"),
+                "power_delivering": port.get("power_delivering"),
+                "protected_device_id": port.get("protected_device_id"),
+                "protected_device_model": port.get("protected_device_model"),
+                "relationship_status": port.get("relationship_status", "not_observed"),
+                "observed_at": port.get("observed_at"),
+                "output_12v": copy.deepcopy(port.get("output_12v", {"voltage_v": None, "current_a": None, "power_w": None})),
+                "output_54v": copy.deepcopy(port.get("output_54v", {"voltage_v": None, "current_a": None, "power_w": None})),
+                "measured_power_w": port.get("measured_power_w"),
+                "power_quality": port.get("power_quality", "unavailable"),
+            })
+        devices.append({
+            "device_id": device.get("device_id"),
+            "model": device.get("model"),
+            "legacy_model": device.get("legacy_model"),
+            "model_id": device.get("model_id"),
+            "model_profile_status": device.get("model_profile_status", "unknown"),
+            "capabilities": copy.deepcopy(device.get("capabilities")),
+            "status": device.get("status", "unknown"),
+            "firmware": device.get("firmware"),
+            "identity_status": device.get("identity_status", "unmatched"),
+            "telemetry_observed": bool(device.get("telemetry_observed")),
+            "observed_at": device.get("observed_at"),
+            "stale": bool(device.get("stale", True)),
+            "ports": ports,
+            "total_output_power_w": device.get("total_output_power_w"),
+            "total_output_power_quality": device.get("total_output_power_quality", "unavailable"),
+        })
+    return {
+        "schema_version": raw.get("schema_version", 1),
+        "source": raw.get("source", "legacy_stat_device"),
+        "supported": bool(raw.get("supported")),
+        "collection_status": raw.get("collection_status", "not_observed"),
+        "observed": bool(raw.get("observed")),
+        "collected_at": raw.get("collected_at"),
+        "stale": bool(raw.get("stale")),
+        "error": copy.deepcopy(raw.get("error")),
+        "devices": devices,
+    }
+
+
 def normalize(profile, raw, previous=None, model=None):
     now = _timestamp(raw)
+    api_observation, rps_observation = _api_and_rps_observation(raw, previous)
     transport = raw.get("transport", {})
     if not transport.get("ok"):
         return {
             "profile": profile["profile_id"],
             "transport": {"status": "unavailable", "last_attempt": now,
                           "last_success": previous.get("updated_at") if previous else None},
-            "api": _api_observation(raw, previous),
+            "api": api_observation,
+            "rps": rps_observation,
             "power": _model_power(model),
             "poe": _model_poe(model),
             "system": previous.get("system") if previous else None,
@@ -473,7 +547,8 @@ def normalize(profile, raw, previous=None, model=None):
     return {
         "profile": profile["profile_id"],
         "transport": {"status": "available", "last_attempt": now, "last_success": now},
-        "api": _api_observation(raw, previous),
+        "api": api_observation,
+        "rps": rps_observation,
         "power": _model_power(model),
         "poe": _model_poe(model),
         "system": {

@@ -3,17 +3,7 @@
 The 2.8 candidate publisher is a `workflow_dispatch` workflow that must be
 present on the default `2.0` branch. Dispatch it on `2.0` with one input:
 the full lowercase SHA of the current, non-draft head of a same-repository PR
-to `2.0` (or that PR's merged head). The source gate also requires the latest
-successful `CI` run for that exact SHA: either a `pull_request` run associated
-with that PR or a manually dispatched `CI` run whose branch is exactly the
-PR's current head branch. Both forms require the `contracts`, `go`, `python`,
-`client-runtime`, `frontend`, `compose`, `images`, and `security` jobs. This
-permits a trusted maintainer to run the same complete CI when an automatic PR
-event was not created, without trusting another branch or a stale SHA. The
-workflow checks out and builds that SHA,
-never a moving branch name. `client-runtime` is an explicit required job so
-an incomplete CI run cannot qualify an image that has not passed Python 3.8
-runtime checks.
+to `2.0` (or that PR's merged head). The source gate requires the latest full `CI` run for that exact SHA to be completed and successful: either a `pull_request` run associated with the PR or a `workflow_dispatch` run launched on the PR's current head branch. Both forms require the `contracts`, `go`, `python`, `client-runtime`, `frontend`, `compose`, `images`, and `security` jobs. The manual fallback is accepted only for the exact current PR head SHA and branch; it cannot qualify a stale SHA or unrelated branch. For the current third-candidate qualification, the required evidence is a real `pull_request` run; a `workflow_dispatch` run must not substitute for it. `client-runtime` runs the complete Client test suite under Python 3.8; `images` depends on it and starts the actual images, then submits an authenticated Device v2 report to an isolated Server. The workflow checks out and builds that SHA, never a moving branch name.
 
 Publication is limited to `ghcr.io/404404/hardwarestatus-server` and
 `ghcr.io/404404/hardwarestatus-client`, each tagged
@@ -91,3 +81,6 @@ Pending cleanup review only (not deleted by this workflow):
 
 This workflow does not create a formal release, update old package names,
 deploy containers, or modify existing 2.5/2.6/2.7 artifacts.
+
+The Client Python baseline and its upgrade risks are recorded in
+[Client Runtime Compatibility](design/CLIENT_RUNTIME_COMPATIBILITY.md).

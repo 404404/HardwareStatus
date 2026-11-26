@@ -73,7 +73,12 @@ def published_candidate_is_valid(
         return False
     if not SHA_PATTERN.fullmatch(catalog_revision):
         return False
-    if catalog_schema_version != 1 or not CATALOG_SHA_PATTERN.fullmatch(catalog_sha256):
+    if (
+        isinstance(catalog_schema_version, bool)
+        or not isinstance(catalog_schema_version, int)
+        or catalog_schema_version not in {1, 2}
+        or not CATALOG_SHA_PATTERN.fullmatch(catalog_sha256)
+    ):
         return False
     if not _label_matches(
         client_labels,
@@ -110,7 +115,12 @@ def classify_publication(
 ) -> str:
     if not SHA_PATTERN.fullmatch(revision) or not SHA_PATTERN.fullmatch(catalog_revision):
         return "FAIL_IMMUTABILITY_VIOLATION"
-    if catalog_schema_version != 1 or not CATALOG_SHA_PATTERN.fullmatch(catalog_sha256):
+    if (
+        isinstance(catalog_schema_version, bool)
+        or not isinstance(catalog_schema_version, int)
+        or catalog_schema_version not in {1, 2}
+        or not CATALOG_SHA_PATTERN.fullmatch(catalog_sha256)
+    ):
         return "FAIL_IMMUTABILITY_VIOLATION"
     if not server_present and not client_present:
         return "PUBLISH"

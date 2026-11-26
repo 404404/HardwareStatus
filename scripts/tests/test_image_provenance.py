@@ -13,15 +13,15 @@ SPEC.loader.exec_module(MODULE)
 REVISION = "a" * 40
 CREATED = "2026-07-21T00:00:00Z"
 SOURCE = "https://github.com/404404/HardwareStatus"
-PRODUCT_VERSION = "2.5"
-CANDIDATE_TAG = "2.5-" + REVISION[:12]
+PRODUCT_VERSION = "2.8"
+CANDIDATE_TAG = "2.8-" + REVISION[:12]
 
 
 def valid_inspect():
     return {
         "Id": "sha256:" + "b" * 64,
         "Config": {
-            "Entrypoint": ["/usr/local/bin/serverstatus"],
+            "Entrypoint": ["/usr/local/bin/hardwarestatus-server"],
             "Labels": {
                 "org.opencontainers.image.title": "HardwareStatus Server",
                 "org.opencontainers.image.description": "read-only dashboard",
@@ -30,12 +30,12 @@ def valid_inspect():
                 "org.opencontainers.image.created": CREATED,
                 "org.opencontainers.image.source": SOURCE,
                 "org.opencontainers.image.licenses": "MIT",
-                "io.hermesstatus.component": "server",
+                "io.hardwarestatus.component": "server",
             },
             "Env": [
-                "HERMESSTATUS_CLIENT_VERSION=" + PRODUCT_VERSION,
-                "HERMESSTATUS_CLIENT_REVISION=" + REVISION,
-                "HERMESSTATUS_CLIENT_BUILD_TIME=" + CREATED,
+                "HARDWARESTATUS_CLIENT_VERSION=" + PRODUCT_VERSION,
+                "HARDWARESTATUS_CLIENT_REVISION=" + REVISION,
+                "HARDWARESTATUS_CLIENT_BUILD_TIME=" + CREATED,
             ],
         },
     }
@@ -45,7 +45,7 @@ def validate(payload):
     return MODULE.validate_inspect(
         payload,
         expected_title="HardwareStatus Server",
-        expected_entrypoint=["/usr/local/bin/serverstatus"],
+        expected_entrypoint=["/usr/local/bin/hardwarestatus-server"],
         version=PRODUCT_VERSION,
         revision=payload["Config"]["Labels"]["org.opencontainers.image.revision"],
         created=payload["Config"]["Labels"]["org.opencontainers.image.created"],
@@ -81,11 +81,13 @@ class ImageProvenanceTests(unittest.TestCase):
         workflow = (
             pathlib.Path(__file__).resolve().parents[2] / ".github/workflows/ci.yml"
         ).read_text(encoding="utf-8")
-        self.assertIn('echo "candidate_tag=2.5-${GITHUB_SHA::12}"', workflow)
-        self.assertIn('echo "product_version=2.5"', workflow)
+        self.assertIn('echo "candidate_tag=2.8-${GITHUB_SHA::12}"', workflow)
+        self.assertIn('echo "product_version=2.8"', workflow)
         self.assertIn("VERSION=${{ steps.provenance.outputs.product_version }}", workflow)
-        self.assertIn("hermesstatus-server:${{ steps.provenance.outputs.candidate_tag }}", workflow)
-        self.assertIn("hermesstatus-client:${{ steps.provenance.outputs.candidate_tag }}", workflow)
+        self.assertIn("hardwarestatus-server:${{ steps.provenance.outputs.candidate_tag }}", workflow)
+        self.assertIn("hardwarestatus-client:${{ steps.provenance.outputs.candidate_tag }}", workflow)
+        self.assertIn("CATALOG_SCHEMA_VERSION=${{ needs.catalog.outputs.schema_version }}", workflow)
+        self.assertIn("--require-server-catalog-provenance", workflow)
 
     def test_server_dockerfile_copies_multi_device_contract_package(self):
         dockerfile = (
@@ -111,13 +113,71 @@ class ImageProvenanceTests(unittest.TestCase):
         dockerfile = (
             pathlib.Path(__file__).resolve().parents[2] / "Dockerfile.client"
         ).read_text(encoding="utf-8")
-        self.assertIn('io.hermesstatus.component="client"', dockerfile)
+        self.assertIn('io.hardwarestatus.component="client"', dockerfile)
+        self.assertNotIn("io.hermesstatus.", dockerfile)
+        for key in ("CLIENT_VERSION", "CLIENT_REVISION", "CLIENT_BUILD_TIME", "CLIENT_PROTOCOL", "UNIFI_CATALOG_REVISION", "UNIFI_CATALOG_SCHEMA_VERSION", "UNIFI_CATALOG_SHA256"):
+            self.assertIn("HARDWARESTATUS_" + key + "=", dockerfile)
+            self.assertNotIn("HERMESSTATUS_" + key + "=", dockerfile)
+        self.assertIn("HERMES_EXPORT_ENABLED=true", dockerfile)
 
     def test_server_dockerfile_sets_server_component_metadata(self):
         dockerfile = (
             pathlib.Path(__file__).resolve().parents[2] / "Dockerfile.server"
         ).read_text(encoding="utf-8")
-        self.assertIn('io.hermesstatus.component="server"', dockerfile)
+        self.assertIn('io.hardwarestatus.component="server"', dockerfile)
+        self.assertIn('io.hardwarestatus.unifi.catalog.sha256="${CATALOG_SHA256}"', dockerfile)
+        self.assertNotIn("io.hermesstatus.", dockerfile)
+
+    def test_server_and_client_catalog_label_validation_accepts_v2(self):
+        config = copy.deepcopy(valid_inspect()["Config"])
+        labels = config["Labels"]
+        revision = "b" * 40
+        digest = "c" * 64
+        namespace = "io.hardwarestatus"
+        labels[namespace + ".unifi.catalog.revision"] = revision
+        labels[namespace + ".unifi.catalog.schema_version"] = "2"
+        labels[namespace + ".unifi.catalog.sha256"] = digest
+        MODULE.validate_catalog_labels(config, revision=revision, schema_version=2, sha256=digest)
+        legacy = copy.deepcopy(config)
+        legacy["Labels"]["io.hermesstatus.unifi.catalog.sha256"] = digest
+        with self.assertRaises(MODULE.ValidationError):
+            MODULE.validate_catalog_labels(
+                legacy, revision=revision, schema_version=2, sha256=digest, hardwarestatus_only=True
+            )
+        with self.assertRaises(MODULE.ValidationError):
+            MODULE.validate_catalog_labels(config, revision=revision, schema_version=3, sha256=digest)
+
+    def test_client_catalog_runtime_provenance_accepts_v2(self):
+        config = copy.deepcopy(valid_inspect()["Config"])
+        revision = "b" * 40
+        digest = "c" * 64
+        for suffix, value in (("revision", revision), ("schema_version", "2"), ("sha256", digest)):
+            config["Labels"]["io.hardwarestatus.unifi.catalog." + suffix] = value
+        config["Env"].extend([
+            "HARDWARESTATUS_UNIFI_CATALOG_REVISION=" + revision,
+            "HARDWARESTATUS_UNIFI_CATALOG_SCHEMA_VERSION=2",
+            "HARDWARESTATUS_UNIFI_CATALOG_SHA256=" + digest,
+        ])
+        MODULE.validate_catalog_provenance(config, revision=revision, schema_version=2, sha256=digest)
+
+    def test_2_8_rejects_legacy_image_identity_but_2_7_compat_remains(self):
+        payload = valid_inspect()
+        payload["Config"]["Labels"]["io.hermesstatus.component"] = "server"
+        with self.assertRaisesRegex(MODULE.ValidationError, "legacy HermesStatus"):
+            validate(payload)
+
+        payload = valid_inspect()
+        payload["Config"]["Labels"]["org.opencontainers.image.version"] = "2.7"
+        payload["Config"]["Labels"]["io.hermesstatus.component"] = "server"
+        MODULE.validate_inspect(
+            payload,
+            expected_title="HardwareStatus Server",
+            expected_entrypoint=["/usr/local/bin/hardwarestatus-server"],
+            version="2.7",
+            revision=REVISION,
+            created=CREATED,
+            source=SOURCE,
+        )
 
     def test_valid_metadata(self):
         result = validate(valid_inspect())
@@ -160,7 +220,7 @@ class ImageProvenanceTests(unittest.TestCase):
 
     def test_server_runtime_values_must_use_formal_product_version(self):
         values = MODULE.parse_server_version(
-            "serverstatus 2.5 commit=" + REVISION + " built=" + CREATED + "\n"
+            "hardwarestatus-server 2.8 commit=" + REVISION + " built=" + CREATED + "\n"
         )
         MODULE.validate_server_runtime_values(
             values, version=PRODUCT_VERSION, revision=REVISION, created=CREATED
@@ -169,6 +229,10 @@ class ImageProvenanceTests(unittest.TestCase):
         with self.assertRaises(MODULE.ValidationError):
             MODULE.validate_server_runtime_values(
                 values, version=PRODUCT_VERSION, revision=REVISION, created=CREATED
+            )
+        with self.assertRaises(MODULE.ValidationError):
+            MODULE.parse_server_version(
+                "serverstatus 2.8 commit=" + REVISION + " built=" + CREATED + "\n"
             )
 
     def test_component_role_mismatch_is_rejected(self):

@@ -52,17 +52,18 @@ class ManualDeviceExampleTests(unittest.TestCase):
         path = EXAMPLES / "docker-compose-server.override.example.yml"
         source = path.read_text(encoding="utf-8")
         for required in (
-            "DEVICE_REGISTRY_PATH: /etc/hermesstatus/devices.json",
-            "HERMESSTATUS_DEVICE_CREDENTIALS_DIR: /etc/hermesstatus/credentials.d",
-            "LEGACY_DEVICE_MAPPING_PATH: /etc/hermesstatus/legacy-device-mapping.json",
-            "./device-registry.example.json:/etc/hermesstatus/devices.json:ro",
-            "./credentials.d:/etc/hermesstatus/credentials.d:ro",
-            "./legacy-device-mapping.example.json:/etc/hermesstatus/legacy-device-mapping.json:ro",
-            "./state:/var/lib/hermesstatus",
+            "HARDWARESTATUS_DEVICE_REGISTRY_PATH: /etc/hardwarestatus/devices.json",
+            "HARDWARESTATUS_DEVICE_CREDENTIALS_DIR: /etc/hardwarestatus/credentials.d",
+            "HARDWARESTATUS_LEGACY_DEVICE_MAPPING_PATH: /etc/hardwarestatus/legacy-device-mapping.json",
+            "HARDWARESTATUS_PERSISTENCE_PATH: /var/lib/hardwarestatus/state-v2.json",
+            "./device-registry.example.json:/etc/hardwarestatus/devices.json:ro",
+            "./credentials.d:/etc/hardwarestatus/credentials.d:ro",
+            "./legacy-device-mapping.example.json:/etc/hardwarestatus/legacy-device-mapping.json:ro",
+            "./state:/var/lib/hardwarestatus",
             "ports: !reset []",
         ):
             self.assertIn(required, source)
-        self.assertNotIn("./state:/var/lib/hermesstatus:ro", source)
+        self.assertNotIn("./state:/var/lib/hardwarestatus:ro", source)
 
     def test_client_override_removes_legacy_transport_and_mounts_v2_read_only(self):
         source = (
@@ -77,6 +78,7 @@ class ManualDeviceExampleTests(unittest.TestCase):
         self.assertIn("environment: !override", source)
         self.assertIn('DSM_VERSION_FILE: "${DSM_VERSION_FILE:-/host/etc.defaults/VERSION}"', source)
         self.assertIn("privileged: false", source)
+        self.assertIn("/run/hardwarestatus:size=4m,mode=0700,nosuid,nodev,noexec", source)
         self.assertIn("cap_add:\n      - SYS_RAWIO", source)
         self.assertIn("devices: !override", source)
         for device in (
@@ -88,8 +90,12 @@ class ManualDeviceExampleTests(unittest.TestCase):
         self.assertIn("volumes: !override", source)
         self.assertNotIn("/dev:/dev:ro", source)
         for required in (
+            "./client-v2.example.json:/etc/hardwarestatus/client-v2.json:ro",
             "./client-v2.example.json:/etc/hermesstatus/client-v2.json:ro",
+            "./compute-01.token:/run/secrets/hardwarestatus-device-token:ro",
             "./compute-01.token:/run/secrets/hermesstatus-device-token:ro",
+            "${CLIENT_STATUS_DIR_HOST:-./client-status}:${CLIENT_STATUS_DIR:-/var/lib/hardwarestatus-client}",
+            "${CLIENT_STATUS_DIR_HOST:-./client-status}:/var/lib/serverstatus-client",
             "${DSM_VERSION_FILE_HOST:-/dev/null}:${DSM_VERSION_FILE:-/host/etc.defaults/VERSION}:ro",
         ):
             self.assertIn(required, source)

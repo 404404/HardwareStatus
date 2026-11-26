@@ -1,4 +1,5 @@
 import hashlib
+import json
 import os
 import ssl
 import tempfile
@@ -10,7 +11,8 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
-from unifi_api import API_COLLECTION_MAX_SECONDS, API_ENDPOINTS, APIError, UniFiAPICollector, _annotate_wan_payload, _context, _read_key, _request, _port_record, _ports, _device_summary, _merge_wans, _network_groups, _statistics_wans, _site_records, _v2_site_path, _legacy_site_path
+from unifi_api import API_COLLECTION_MAX_SECONDS, API_ENDPOINTS, APIError, MODEL_CATALOG, UniFiAPICollector, _annotate_wan_payload, _context, _read_key, _request, _port_record, _ports, _device_descriptor, _device_summary, _merge_wans, _network_groups, _statistics_wans, _site_records, _v2_site_path, _legacy_site_path, _rps_projection, _rps_state
+from unifi_model_catalog import resolve_model
 
 
 class UniFiAPITests(unittest.TestCase):
@@ -26,6 +28,209 @@ class UniFiAPITests(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def test_rps_projection_uses_verified_models_and_exact_peer_identity(self):
+        fixture = json.loads((ROOT / "unifi_fixtures" / "usp-rps-raw.json").read_text(encoding="utf-8"))
+        result = _rps_projection(fixture["legacy_stat_device"], fixture["devices"], fixture["collected_at"])
+        self.assertEqual(result["source"], "legacy_stat_device")
+        self.assertEqual((result["collection_status"], result["observed"]), ("available", True))
+        self.assertEqual(len(result["devices"]), 1)
+        rps = result["devices"][0]
+        self.assertEqual((rps["device_id"], rps["model"], rps["legacy_model"]), ("rps-device-01", "USP RPS", "USPRPS"))
+        self.assertEqual((rps["model_id"], rps["model_profile_status"]), ("USP-RPS", "known"))
+        self.assertEqual(len(rps["capabilities"]["dc_outputs"]["items"]), 6)
+        self.assertEqual([rail["max_capacity_w"] for rail in rps["capabilities"]["dc_power_rails"]], [350, 600])
+        self.assertTrue(rps["telemetry_observed"])
+        self.assertEqual(len(rps["ports"]), 6)
+        self.assertEqual(rps["ports"][4]["connection_state"], "delivering_power")
+        self.assertTrue(rps["ports"][4]["power_delivering"])
+        self.assertEqual(rps["ports"][4]["protected_device_id"], "protected-device-hd24")
+        self.assertEqual(rps["ports"][5]["protected_device_id"], "protected-device-promax24")
+        self.assertEqual(rps["ports"][4]["output_12v"]["power_w"], 21)
+        self.assertEqual(rps["ports"][5]["output_12v"]["power_w"] + rps["ports"][5]["output_54v"]["power_w"], 80)
+        self.assertNotIn("rails", rps)
+        self.assertEqual(rps["total_output_power_w"], 101)
+        self.assertEqual(rps["total_output_power_quality"], "same_sample_port_sum")
+        self.assertNotIn("power_source", repr(result))
+        self.assertNotIn("identity-", repr(result))
+
+    def test_rps_unobserved_or_missing_source_is_component_scoped(self):
+        fixture = json.loads((ROOT / "unifi_fixtures" / "usp-rps-raw.json").read_text(encoding="utf-8"))
+        no_rps = _rps_projection(fixture["legacy_stat_device"], [], fixture["collected_at"])
+        self.assertEqual((no_rps["collection_status"], no_rps["observed"], no_rps["devices"]), ("not_observed", False, []))
+        missing_source = _rps_projection(None, fixture["devices"], fixture["collected_at"])
+        self.assertEqual(missing_source["collection_status"], "unavailable")
+        self.assertTrue(missing_source["observed"])
+        self.assertEqual(missing_source["devices"][0]["total_output_power_w"], None)
+        self.assertIsNotNone(missing_source["error"])
+
+    def test_rps_partial_disconnected_and_invalid_observations_remain_bounded(self):
+        fixture = json.loads((ROOT / "unifi_fixtures" / "usp-rps-raw.json").read_text(encoding="utf-8"))
+        partial = json.loads(json.dumps(fixture["legacy_stat_device"]))
+        partial["data"][0]["rps"]["rps_port_table"].pop()
+        result = _rps_projection(partial, fixture["devices"], fixture["collected_at"])
+        self.assertEqual(result["collection_status"], "partial")
+        self.assertEqual(len(result["devices"][0]["ports"]), 5)
+        self.assertIsNone(result["devices"][0]["total_output_power_w"])
+
+        no_ports = json.loads(json.dumps(fixture["legacy_stat_device"]))
+        no_ports["data"][0]["rps"]["rps_port_table"] = []
+        result = _rps_projection(no_ports, fixture["devices"], fixture["collected_at"])
+        self.assertEqual(result["collection_status"], "partial")
+        self.assertEqual(result["devices"][0]["ports"], [])
+        self.assertIsNone(result["devices"][0]["total_output_power_w"])
+
+        invalid = json.loads(json.dumps(fixture["legacy_stat_device"]))
+        invalid_port = invalid["data"][0]["rps"]["rps_port_table"][4]
+        invalid_port["power_12v_power"] = "not-a-number"
+        result = _rps_projection(invalid, fixture["devices"], fixture["collected_at"])
+        disconnected = result["devices"][0]["ports"][0]
+        self.assertEqual(disconnected["connection_state"], "disconnected")
+        self.assertFalse(disconnected["power_delivering"])
+        bad_measurement = result["devices"][0]["ports"][4]
+        self.assertIsNone(bad_measurement["output_12v"]["power_w"])
+        self.assertEqual(bad_measurement["output_54v"]["power_w"], 0)
+        self.assertEqual(bad_measurement["power_quality"], "unavailable")
+        self.assertIsNone(result["devices"][0]["total_output_power_w"])
+
+    def test_rps_unverified_api_model_does_not_claim_rps_or_static_capabilities(self):
+        fixture = json.loads((ROOT / "unifi_fixtures" / "usp-rps-raw.json").read_text(encoding="utf-8"))
+        fixture["devices"][0]["model"] = "Unverified RPS Variant"
+        result = _rps_projection(fixture["legacy_stat_device"], fixture["devices"], fixture["collected_at"])
+        self.assertEqual(result["collection_status"], "not_observed")
+        self.assertEqual(result["devices"], [])
+
+    def test_full_collect_keeps_rps_dc_and_ethernet_site_projections_separate(self):
+        captured = json.loads((ROOT / "unifi_fixtures" / "usp-rps-raw.json").read_text(encoding="utf-8"))
+        rps_model = resolve_model(MODEL_CATALOG, "USP RPS", kind="api_model")
+        self.assertEqual((rps_model["schema_version"], rps_model["device_type"]), (2, "rps"))
+        self.assertNotIn("ports", rps_model)
+        target = {"id": "ucg-max-target", "model": "UCG Max", "name": "UCG Max", "type": "gateway", "state": "ONLINE"}
+        ethernet_devices = [
+            {"id": "udw-device", "model": "UniFi Dream Wall", "name": "Dream Wall", "type": "gateway", "state": "ONLINE"},
+            {"id": "pro-hd-device", "model": "USW Pro HD 24", "name": "Pro HD", "type": "switch", "state": "ONLINE"},
+            {"id": "promax24-device", "model": "USW Pro Max 24 PoE", "name": "Pro Max 24", "type": "switch", "state": "ONLINE"},
+            {"id": "u6-mesh-device", "model": "U6 Mesh", "name": "Mesh AP", "type": "ap", "state": "ONLINE"},
+            {"id": "unknown-device", "model": "Uncatalogued Test Device", "name": "Unknown", "type": "switch", "state": "ONLINE"},
+        ]
+        devices = [target] + captured["devices"] + ethernet_devices
+        legacy = json.loads(json.dumps(captured["legacy_stat_device"]))
+        for device in [target] + ethernet_devices:
+            legacy["data"].append({
+                "device_id": device["id"], "model": device["model"],
+                "port_table": [{
+                    "port_idx": 1, "name": "Port 1", "up": True,
+                    "speed": 1000, "rx_bytes": 1000, "tx_bytes": 2000,
+                    "port_poe": device["id"] == "promax24-device",
+                    "poe_power": "3.25" if device["id"] == "promax24-device" else "0",
+                }],
+            })
+
+        def collect_site(legacy_payload):
+            calls = []
+            def request(_config, path, _key):
+                calls.append(path)
+                if path.endswith("/info"):
+                    return {"applicationVersion": "10.5.67"}, 200
+                if path.endswith("/sites"):
+                    return {"data": [{"id": "site-test", "internalReference": "default", "name": "Test Site"}]}, 200
+                if path.endswith("/devices"):
+                    return {"data": devices}, 200
+                if path.endswith("/devices/ucg-max-target/statistics/latest"):
+                    return {"cpuUtilizationPct": 12.5, "memoryUtilizationPct": 41.0, "uptimeSec": 1234}, 200
+                if path.endswith("/devices/ucg-max-target"):
+                    return {"id": target["id"], "model": target["model"], "interfaces": {"ports": []}}, 200
+                if path.endswith("/clients") or path.endswith("/networks") or path.endswith("/switching/lags") or path.endswith("/topology") or path.endswith("/ports/port-anomalies") or path.endswith("/wans") or path.endswith("/enriched-configuration") or path.endswith("/load-balancing/status") or path.endswith("/load-balancing/configuration") or path.endswith("/wan-slas"):
+                    return {"data": []}, 200
+                if path.endswith("/stat/device"):
+                    return legacy_payload, 200
+                if path.endswith("/stat/health") or path.endswith("/stat/sysinfo"):
+                    return {"data": []}, 200
+                raise AssertionError("unexpected API fixture route")
+            result = UniFiAPICollector(self.config, request=request, target_profile="ucg-max").collect()
+            self.assertEqual(len(calls), len(set(calls)), "fixture API route was requested more than once")
+            return result
+
+        result = collect_site(legacy)
+        self.assertEqual(result["status"], "available")
+        self.assertIsNone(result["error"])
+        self.assertTrue(all(item["status"] == "ok" for item in result["endpoints"]))
+        telemetry = result["telemetry"]
+        self.assertEqual(telemetry["rps"]["collection_status"], "available")
+        self.assertEqual(len(telemetry["rps"]["devices"][0]["ports"]), 6)
+        self.assertEqual(telemetry["rps"]["devices"][0]["total_output_power_w"], 101)
+        self.assertNotIn("rps-device-01", {item["device_id"] for item in telemetry["ports"]})
+        self.assertEqual(telemetry["port_summary"]["poe_total_power_w"], 3.25)
+        self.assertEqual(telemetry["identity"]["model"], "UCG Max")
+        ports_per_device = {}
+        for item in telemetry["ports"]:
+            ports_per_device[item["device_id"]] = ports_per_device.get(item["device_id"], 0) + 1
+        self.assertEqual(ports_per_device, {
+            "ucg-max-target": 5,
+            "udw-device": 20,
+            "pro-hd-device": 28,
+            "promax24-device": 26,
+            "u6-mesh-device": 1,
+            "unknown-device": 1,
+            "protected-device-hd24": 28,
+            "protected-device-promax24": 26,
+        })
+        promax_ports = [item for item in telemetry["ports"] if item["device_id"] == "promax24-device"]
+        self.assertEqual(len(promax_ports), 26)
+        self.assertEqual({item["model_id"] for item in promax_ports}, {"USW-Pro-Max-24-PoE"})
+        self.assertEqual(next(item for item in promax_ports if item["port_idx"] == 1)["poe"]["power_w"], 3.25)
+        unknown = next(item for item in telemetry["ports"] if item["device_id"] == "unknown-device")
+        self.assertNotIn("model_id", unknown)
+        self.assertEqual(unknown["port_idx"], 1)
+
+        # A deterministic synthetic 99 W vector checks same-snapshot summing
+        # without changing the committed captured 101 W observation.
+        expected_99 = json.loads(json.dumps(legacy))
+        expected_99["data"][0]["rps"]["rps_port_table"][5]["power_54v_power"] = "65"
+        result_99 = collect_site(expected_99)
+        self.assertEqual(result_99["telemetry"]["rps"]["devices"][0]["total_output_power_w"], 99)
+
+    def test_rps_never_enters_ethernet_table_when_matched_or_static_only(self):
+        captured = json.loads((ROOT / "unifi_fixtures" / "usp-rps-raw.json").read_text(encoding="utf-8"))
+        target = {"id": "ucg-max-target", "model": "UCG Max"}
+        rps = captured["devices"][0]
+        matched = json.loads(json.dumps(captured["legacy_stat_device"]))
+        matched["data"][0]["device_id"] = rps["id"]
+        matched["data"][0]["port_table"] = [{"port_idx": 1, "up": True, "port_poe": True, "poe_power": "99"}]
+        for legacy in (matched, {"data": []}):
+            ports, summary = _ports(
+                legacy, target, {}, 1.0, devices=[target, rps],
+            )
+            self.assertFalse(any(item["device_id"] == rps["id"] for item in ports or []))
+            self.assertFalse(any(item.get("device_id") == rps["id"] for item in (ports or [])))
+            if summary is not None:
+                self.assertNotEqual(summary.get("poe_total_power_w"), 99)
+
+    def test_rps_relationship_never_falls_back_to_peer_name(self):
+        fixture = json.loads((ROOT / "unifi_fixtures" / "usp-rps-raw.json").read_text(encoding="utf-8"))
+        fixture["legacy_stat_device"]["data"][0]["rps"]["rps_port_table"][4]["peer"]["mac"] = "unmatched-peer"
+        result = _rps_projection(fixture["legacy_stat_device"], fixture["devices"], fixture["collected_at"])
+        port = result["devices"][0]["ports"][4]
+        self.assertEqual(port["relationship_status"], "not_observed")
+        self.assertIsNone(port["protected_device_id"])
+        self.assertEqual(port["protected_device_model"], None)
+        self.assertTrue(port["power_delivering"])
+
+    def test_rps_state_vocabulary_does_not_conflate_unknown_with_standby(self):
+        expected = {
+            "Disconnected": "disconnected",
+            "Connecting": "connecting",
+            "Connected (Standby)": "connected_standby",
+            "Delivering Power": "delivering_power",
+            "Insufficient Power Availability": "insufficient_power",
+            "Power Overload": "power_overload",
+            "PSU Power Overload": "psu_power_overload",
+            "Disabled": "disabled",
+        }
+        for raw, normalized in expected.items():
+            with self.subTest(raw=raw):
+                self.assertEqual(_rps_state(raw), normalized)
+        self.assertEqual(_rps_state("connected"), "unknown")
 
     def test_explicit_pin_uses_pin_only_context_without_implicit_fallback(self):
         context = _context(None, "a" * 64)
@@ -235,6 +440,19 @@ class UniFiAPITests(unittest.TestCase):
         self.assertEqual(_v2_site_path("default", "wan/enriched-configuration"), "/proxy/network/v2/api/site/default/wan/enriched-configuration")
         self.assertEqual(_legacy_site_path("default", "stat/health"), "/proxy/network/api/s/default/stat/health")
         self.assertNotIn("uuid-123", _v2_site_path("default", "topology"))
+
+    def test_verified_pro_max_24_api_identity_resolves_in_runtime_descriptor(self):
+        descriptor = _device_descriptor(
+            {"id": "synthetic-device", "model": "USW Pro Max 24 PoE", "type": "switch"},
+            include_capabilities=True,
+        )
+        self.assertEqual(descriptor["model"], "USW Pro Max 24 PoE")
+        self.assertEqual(descriptor["model_id"], "USW-Pro-Max-24-PoE")
+        self.assertEqual(descriptor["model_profile_status"], "known")
+        self.assertEqual(
+            descriptor["capabilities"]["poe"]["absolute_max_poe_budget_w"],
+            400,
+        )
 
     def test_missing_internal_reference_never_guesses_default(self):
         sites = _site_records({"data": [{"id": "uuid-123", "name": "Main"}]})
@@ -636,7 +854,7 @@ class UniFiAPITests(unittest.TestCase):
         records, _ = _ports({"data": []}, devices[0], {}, 1.0, devices=devices)
         self.assertEqual(records, [{
             "device_id": "mesh-1", "port_idx": 1, "name": "Port 1", "connector": "rj45",
-            "model_profile_status": "known", "media": "rj45", "roles": ["lan", "uplink", "data_in"], "poe_in": True, "poe_out": False,
+            "model_profile_status": "known", "media": "rj45", "roles": ["lan"], "poe_in": True, "poe_out": False,
             "model_id": "U6-Mesh", "max_speed_mbps": 1000.0,
             "poe_standard": "poe", "poe": {"supported": False, "class": "poe"},
         }])
@@ -750,6 +968,30 @@ class UniFiAPITests(unittest.TestCase):
         info = next(item for item in result["endpoints"] if item["name"] == "info")
         self.assertEqual(info["error"]["code"], "api_parse_failure")
 
+    def test_http_json_decode_failure_remains_distinct_from_normalization_failure(self):
+        class Response:
+            status = 200
+            def read(self, _limit):
+                return b"{not-json"
+            def getheader(self, name, default=""):
+                return "application/json" if name == "Content-Type" else default
+
+        class Connection:
+            def __init__(self, *args, **kwargs):
+                self.sock = SimpleNamespace(getpeercert=lambda **kwargs: b"fixture-cert")
+            def connect(self):
+                pass
+            def request(self, method, path, headers):
+                pass
+            def getresponse(self):
+                return Response()
+            def close(self):
+                pass
+
+        with patch("unifi_api.HTTPSConnection", Connection), self.assertRaises(APIError) as captured:
+            _request(self.config, "/proxy/network/integration/v1/info", "fixture-only-key")
+        self.assertEqual(captured.exception.code, "api_parse_failure")
+
     def test_telemetry_normalization_failure_is_contained(self):
         calls = []
         with patch("unifi_api._telemetry", side_effect=ValueError("unexpected shape")):
@@ -760,7 +1002,7 @@ class UniFiAPITests(unittest.TestCase):
         normalization = next(item for item in result["endpoints"] if item["name"] == "normalization")
         self.assertTrue(normalization["required"])
         self.assertEqual(normalization["status"], "error")
-        self.assertEqual(normalization["error"]["code"], "api_parse_failure")
+        self.assertEqual(normalization["error"]["code"], "api_normalization_failure")
 
     def test_api_endpoint_registry_has_no_root_resources(self):
         self.assertEqual(API_ENDPOINTS, (

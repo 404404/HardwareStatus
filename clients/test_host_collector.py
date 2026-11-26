@@ -19,6 +19,8 @@ from host_collector import (
     atomic_write_json,
     build_block_device_graph,
     collect_client_build,
+    _status_dir_from_environment,
+    _hermes_status_file_from_environment,
     collect_cpu_details,
     collect_cpu_model,
     collect_cpu_usage,
@@ -1196,6 +1198,74 @@ class HostCollectorTests(unittest.TestCase):
                 "HERMESSTATUS_CLIENT_PROTOCOL": "device_v2",
             })
         )
+        self.assertEqual(
+            collect_client_build({
+                "HARDWARESTATUS_CLIENT_VERSION": "2.8",
+                "HARDWARESTATUS_CLIENT_REVISION": "a" * 40,
+                "HARDWARESTATUS_CLIENT_BUILD_TIME": "2026-08-11T00:00:00Z",
+                "HARDWARESTATUS_CLIENT_PROTOCOL": "device_v2",
+            }),
+            {
+                "version": "2.8",
+                "revision": "a" * 40,
+                "build_time": "2026-08-11T00:00:00Z",
+                "protocol": "device_v2",
+            },
+        )
+        self.assertIsNone(
+            collect_client_build({
+                "HARDWARESTATUS_CLIENT_VERSION": "2.8",
+                "HERMESSTATUS_CLIENT_VERSION": "2.7",
+                "HARDWARESTATUS_CLIENT_REVISION": "a" * 40,
+                "HARDWARESTATUS_CLIENT_PROTOCOL": "device_v2",
+            })
+        )
+
+    def test_client_build_metadata_aliases_are_python38_compatible_and_unambiguous(self):
+        revision = "b" * 40
+        canonical = {
+            "HARDWARESTATUS_CLIENT_VERSION": "2.8",
+            "HARDWARESTATUS_CLIENT_REVISION": revision,
+            "HARDWARESTATUS_CLIENT_BUILD_TIME": "2026-11-24T00:00:00Z",
+            "HARDWARESTATUS_CLIENT_PROTOCOL": "device_v2",
+        }
+        legacy = {
+            key.replace("HARDWARESTATUS_", "HERMESSTATUS_", 1): value
+            for key, value in canonical.items()
+        }
+        expected = {
+            "version": "2.8",
+            "revision": revision,
+            "build_time": "2026-11-24T00:00:00Z",
+            "protocol": "device_v2",
+        }
+
+        self.assertEqual(collect_client_build(canonical), expected)
+        self.assertEqual(collect_client_build(legacy), expected)
+        self.assertEqual(collect_client_build({**canonical, **legacy}), expected)
+
+        conflicting = {**canonical, **legacy}
+        conflicting["HERMESSTATUS_CLIENT_REVISION"] = "c" * 40
+        self.assertIsNone(collect_client_build(conflicting))
+
+    def test_new_status_defaults_reuse_legacy_mount_if_only_old_path_exists(self):
+        legacy = "/var/lib/serverstatus-client"
+        with patch("host_collector.os.path.isdir", side_effect=lambda path: path == legacy):
+            self.assertEqual(
+                _status_dir_from_environment({"CLIENT_STATUS_DIR": "/var/lib/hardwarestatus-client"}),
+                legacy,
+            )
+            self.assertEqual(
+                _hermes_status_file_from_environment({
+                    "HERMES_STATUS_FILE": "/var/lib/hardwarestatus-client/hermes/hermes.json"
+                }),
+                legacy + "/hermes/hermes.json",
+            )
+        with patch("host_collector.os.path.isdir", return_value=True):
+            self.assertEqual(
+                _status_dir_from_environment({"CLIENT_STATUS_DIR": "/var/lib/hardwarestatus-client"}),
+                "/var/lib/hardwarestatus-client",
+            )
 
     def test_extension_payload_exposes_client_build_at_the_root(self):
         build = {"version": "2.5", "revision": "abcdef012345", "protocol": "device_v2", "build_time": None}

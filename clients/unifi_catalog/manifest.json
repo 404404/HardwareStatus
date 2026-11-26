@@ -1,5 +1,5 @@
 {
-  "catalog_schema_version": 1,
-  "model_count": 20,
-  "bundle_sha256": "2251eddb656af89483a3497ca2fe46bf60339c3f96ae38b3390761d7f379a371"
+  "catalog_schema_version": 2,
+  "model_count": 21,
+  "bundle_sha256": "ba59930b18e88df78bef35cc51ee2ba897169fb8cdcae20465aa69878c6664fa"
 }

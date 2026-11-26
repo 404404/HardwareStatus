@@ -64,6 +64,41 @@ class DeviceClientConfigTests(unittest.TestCase):
         self.assertIs(v2.mode, ClientMode.DEVICE_V2)
         self.assertEqual(v2.device_v2.device_id, "device-alpha")
 
+    def test_hardwarestatus_prefix_is_accepted_and_legacy_conflicts_fail_closed(self):
+        canonical = {
+            key.replace("HERMESSTATUS_", "HARDWARESTATUS_", 1): value
+            for key, value in self.complete_env.items()
+        }
+        selected = load_client_selection([], environ=canonical)
+        self.assertIs(selected.mode, ClientMode.DEVICE_V2)
+        self.assertEqual(selected.device_v2, load_client_selection([], environ=self.complete_env).device_v2)
+
+        conflicting = {
+            **self.complete_env,
+            "HARDWARESTATUS_SERVER_URL": "https://other.example.invalid",
+        }
+        with self.assertRaises(ClientContractError):
+            load_client_selection([], environ=conflicting)
+
+        with self.assertRaises(ClientContractError):
+            load_client_selection(
+                ["HERMESSTATUS_DEVICE_NAME=CLI name"],
+                environ={**canonical, "HERMESSTATUS_DEVICE_NAME": "legacy name"},
+            )
+
+    def test_config_file_alias_conflict_fails_closed(self):
+        path = self.root / "config-alias.json"
+        path.write_text(json.dumps({"schema_version": 1}), encoding="utf-8")
+        path.chmod(0o600)
+        with self.assertRaises(ClientContractError):
+            load_client_selection(
+                [],
+                environ={
+                    "HARDWARESTATUS_CONFIG_FILE": str(path),
+                    "HERMESSTATUS_CONFIG_FILE": str(path) + ".different",
+                },
+            )
+
     def test_catalog_build_metadata_alone_does_not_select_device_v2(self):
         metadata = {
             "HERMESSTATUS_CLIENT_VERSION": "2.7",
@@ -77,6 +112,16 @@ class DeviceClientConfigTests(unittest.TestCase):
         selection = load_client_selection([], environ=metadata)
         self.assertIs(selection.mode, ClientMode.LEGACY)
         self.assertIsNone(selection.device_v2)
+
+    def test_build_metadata_alias_conflict_fails_closed_even_in_legacy_mode(self):
+        with self.assertRaises(ClientContractError):
+            load_client_selection(
+                [],
+                environ={
+                    "HARDWARESTATUS_CLIENT_VERSION": "2.8",
+                    "HERMESSTATUS_CLIENT_VERSION": "2.7",
+                },
+            )
 
     def test_valid_device_v2_configuration_is_unchanged_by_catalog_metadata(self):
         baseline = load_client_selection([], environ=self.complete_env)

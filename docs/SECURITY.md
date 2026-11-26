@@ -1,8 +1,10 @@
 # Security
 
-HardwareStatus is intentionally read-only. The repository rename does not
-change the established `hermesstatus` credential paths, environment names, or
-image package names used by deployed installations.
+HardwareStatus is intentionally read-only. The canonical environment prefix is
+`HARDWARESTATUS_*`; existing `HERMESSTATUS_*` inputs remain accepted and
+conflicting aliases fail closed. Existing credential paths and image artifacts
+remain available for deployed installations; new deployments use the
+HardwareStatus image namespace.
 
 ## Identity and secrets
 

@@ -28,6 +28,21 @@ PR = {
 
 
 class CandidateSourceValidationTests(unittest.TestCase):
+    def test_python38_client_runtime_gate_is_required_for_source_trust(self):
+        self.assertIn("client-runtime", MODULE.REQUIRED_CI_JOBS)
+        jobs_without_runtime = [
+            {"name": name, "conclusion": "success"}
+            for name in MODULE.REQUIRED_CI_JOBS
+            if name != "client-runtime"
+        ]
+        with self.assertRaises(MODULE.SourceValidationError):
+            MODULE.validate_ci_jobs(jobs_without_runtime)
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn("client-runtime:", workflow)
+        self.assertIn('python-version: "3.8"', workflow)
+        images_job = workflow.split("  images:", 1)[1].split("  security:", 1)[0]
+        self.assertIn("client-runtime", images_job)
+
     def test_exact_same_repository_ready_pr_head_is_trusted(self):
         selected = MODULE.select_trusted_pull_request([PR], SHA)
         self.assertEqual(selected["number"], 40)
@@ -128,3 +143,4 @@ class CandidateSourceValidationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

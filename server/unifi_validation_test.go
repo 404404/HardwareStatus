@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -39,6 +40,62 @@ func validUniFiFixture(profile string) UniFiStats {
 		Storage:       UniFiStorageStats{NVMe: UniFiStorageCapability{Supported: UniFiCapabilityUnknown, Present: UniFiPresenceUnknown, Observed: false}},
 		Diagnostics:   UniFiDiagnostics{CollectionStatus: "not_collected", Ignored: make([]UniFiIgnoredObservation, 0)},
 		UpdatedAt:     &now, Stale: false, Error: nil,
+	}
+}
+
+func validUniFiRPSFixture() *UniFiRPSStats {
+	now := "2026-11-22T14:10:54Z"
+	capabilities := &UniFiRPSCapabilities{
+		SchemaVersion: 2, CanonicalSKU: "USP-RPS", DisplayName: "UniFi Redundant Power System", DeviceType: "rps",
+		ManagementInterface: UniFiRPSManagementInterface{Type: "ethernet", Count: 1, Connector: "rj45", SpeedMbps: 1000, EvidenceID: "official-usp-rps-techspecs-20261123"},
+		DCOutputs:           UniFiRPSDCOutputs{Complete: true, Items: make([]UniFiRPSDCOutput, 0, 6)},
+		DCPowerRails: []UniFiRPSStaticRail{
+			{ID: "rail-11v5", NominalVoltageV: 11.5, MaxCapacityW: 350, EvidenceID: "official-usp-rps-techspecs-20261123"},
+			{ID: "rail-52v", NominalVoltageV: 52, MaxCapacityW: 600, EvidenceID: "official-usp-rps-techspecs-20261123"},
+		},
+	}
+	ports := make([]UniFiRPSPort, 0, 6)
+	for index := 1; index <= 6; index++ {
+		state := "disconnected"
+		active, delivering := false, false
+		var protectedID, protectedModel *string
+		voltage12V, current12V, power12V := 0.0, 0.0, 0.0
+		voltage54V, current54V, power54V := 0.0, 0.0, 0.0
+		if index == 4 {
+			state = "connected_standby"
+		}
+		if index == 5 {
+			state, active, delivering = "delivering_power", true, true
+			protectedID, protectedModel = unifiString("protected-device-hd24"), unifiString("USW Pro HD 24")
+			voltage12V, current12V, power12V = 11.471, 1.755, 21
+		}
+		if index == 6 {
+			state, active, delivering = "delivering_power", true, true
+			protectedID, protectedModel = unifiString("protected-device-promax24"), unifiString("USW Pro Max 24 PoE")
+			voltage12V, current12V, power12V = 11.469, 1.065, 13
+			voltage54V, current54V, power54V = 51.468, 1.29, 67
+		}
+		capabilities.DCOutputs.Items = append(capabilities.DCOutputs.Items, UniFiRPSDCOutput{
+			Index: index, Kind: "dc_power_output", Label: "DC " + strconv.Itoa(index),
+		})
+		ports = append(ports, UniFiRPSPort{
+			Index: index, ConnectionState: state, PowerActive: &active, PowerDelivering: &delivering,
+			ProtectedDeviceID: protectedID, ProtectedDeviceModel: protectedModel,
+			RelationshipStatus: map[bool]string{true: "matched", false: "not_observed"}[protectedID != nil], ObservedAt: &now,
+			Output12V:      UniFiRPSBusOutput{VoltageV: &voltage12V, CurrentA: &current12V, PowerW: &power12V},
+			Output54V:      UniFiRPSBusOutput{VoltageV: &voltage54V, CurrentA: &current54V, PowerW: &power54V},
+			MeasuredPowerW: unifiFloat(power12V + power54V), PowerQuality: "measured_output_sum",
+		})
+	}
+	return &UniFiRPSStats{
+		SchemaVersion: 1, Source: "legacy_stat_device", Supported: true, CollectionStatus: "available", Observed: true,
+		CollectedAt: &now, Stale: false, Devices: []UniFiRPSDevice{{
+			DeviceID: unifiString("rps-device-01"), Model: unifiString("USP RPS"), LegacyModel: unifiString("USPRPS"),
+			ModelID: unifiString("USP-RPS"), ModelProfileStatus: "known", Capabilities: capabilities, Status: "online",
+			Firmware: unifiString("7.2.123"), IdentityStatus: "matched", TelemetryObserved: true, ObservedAt: &now, Stale: false,
+			Ports:             ports,
+			TotalOutputPowerW: unifiFloat(101), TotalOutputPowerQuality: "same_sample_port_sum",
+		}},
 	}
 }
 
@@ -161,6 +218,76 @@ func TestUniFiAPITelemetryProjectionAndPartialFailure(t *testing.T) {
 	}
 }
 
+func TestUniFiRPSStaticCapabilitiesAndRuntimePowerRoundTrip(t *testing.T) {
+	stats := validUniFiFixture("udw")
+	now := "2026-11-22T14:10:54Z"
+	status := 200
+	stats.API = &UniFiAPIStats{
+		Enabled: true, Status: "available", LastAttempt: &now, LastSuccess: &now,
+		Endpoints: []UniFiAPIEndpoint{{Name: "info", Status: "ok", HTTPStatus: &status}},
+	}
+	stats.RPS = validUniFiRPSFixture()
+	if err := ValidateUniFiStats(&stats); err != nil {
+		t.Fatalf("valid RPS observation rejected: %v", err)
+	}
+	raw, err := json.Marshal(stats)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "power_source") || strings.Contains(string(raw), "ac_fault") || strings.Contains(string(raw), `"rails":`) {
+		t.Fatalf("RPS output inferred an unqualified power-source/AC fault field: %s", raw)
+	}
+	decoded, err := DecodeUniFiStatsJSON(raw)
+	if err != nil {
+		t.Fatalf("RPS strict-schema round trip rejected: %v", err)
+	}
+	rps := decoded.RPS.Devices[0]
+	if rps.TotalOutputPowerW == nil || *rps.TotalOutputPowerW != 101 || rps.TotalOutputPowerQuality != "same_sample_port_sum" {
+		t.Fatalf("same-snapshot measured total changed: %#v", rps)
+	}
+	if len(rps.Capabilities.DCOutputs.Items) != 6 || rps.Capabilities.DCPowerRails[0].MaxCapacityW != 350 || rps.Capabilities.DCPowerRails[1].MaxCapacityW != 600 {
+		t.Fatalf("static six-output/two-rail capability changed: %#v", rps.Capabilities)
+	}
+	if rps.Ports[3].ConnectionState != "connected_standby" || *rps.Ports[3].PowerDelivering || rps.Ports[4].ConnectionState != "delivering_power" || !*rps.Ports[4].PowerDelivering {
+		t.Fatalf("standby and actual delivery were conflated: %#v", rps.Ports)
+	}
+	if rps.Ports[4].ProtectedDeviceID == nil || *rps.Ports[4].ProtectedDeviceID != "protected-device-hd24" || rps.Ports[5].ProtectedDeviceID == nil || *rps.Ports[5].ProtectedDeviceID != "protected-device-promax24" {
+		t.Fatalf("exact protected-device relationships changed: %#v", rps.Ports)
+	}
+	badTotal := *decoded
+	badTotal.RPS = sanitizeUniFiRPSStats(decoded.RPS)
+	badTotal.RPS.Devices[0].TotalOutputPowerW = unifiFloat(100)
+	if err := ValidateUniFiStats(&badTotal); err == nil {
+		t.Fatal("mismatched same-snapshot total was accepted")
+	}
+	duplicatePort := *decoded
+	duplicatePort.RPS = sanitizeUniFiRPSStats(decoded.RPS)
+	duplicatePort.RPS.Devices[0].Ports[1].Index = duplicatePort.RPS.Devices[0].Ports[0].Index
+	if err := ValidateUniFiStats(&duplicatePort); err == nil {
+		t.Fatal("duplicate RPS output index was accepted")
+	}
+}
+
+func TestUniFiUnknownRPSIdentityKeepsRuntimeWithoutStaticClaims(t *testing.T) {
+	stats := validUniFiFixture("udw")
+	now := "2026-11-22T14:10:54Z"
+	status := 200
+	stats.API = &UniFiAPIStats{Enabled: true, Status: "available", LastAttempt: &now, LastSuccess: &now, Endpoints: []UniFiAPIEndpoint{{Name: "info", Status: "ok", HTTPStatus: &status}}}
+	stats.RPS = &UniFiRPSStats{
+		SchemaVersion: 1, Source: "legacy_stat_device", Supported: true, CollectionStatus: "partial", Observed: true,
+		CollectedAt: &now, Stale: true, Devices: []UniFiRPSDevice{{
+			Model: unifiString("Unknown RPS identity"), ModelProfileStatus: "unknown", Status: "unknown", IdentityStatus: "unmatched",
+			TelemetryObserved: false, Stale: true, Ports: []UniFiRPSPort{}, TotalOutputPowerQuality: "unavailable",
+		}},
+	}
+	if err := ValidateUniFiStats(&stats); err != nil {
+		t.Fatalf("unknown RPS identity should retain bounded observations: %v", err)
+	}
+	if stats.RPS.Devices[0].Capabilities != nil || stats.RPS.Devices[0].ModelID != nil || stats.RPS.Devices[0].TotalOutputPowerW != nil {
+		t.Fatalf("unknown RPS identity received inferred static/runtime values: %#v", stats.RPS.Devices[0])
+	}
+}
+
 func TestUniFiOptionalUnsupportedEndpointIsDiagnosticOnly(t *testing.T) {
 	stats := validUniFiFixture("udw")
 	now := "2026-08-27T01:02:03Z"
@@ -198,6 +325,40 @@ func TestUniFiOptionalUnsupportedEndpointIsDiagnosticOnly(t *testing.T) {
 	if found == nil || found.Required || found.Status != "unsupported" || found.HTTPStatus == nil || *found.HTTPStatus != 404 || found.Error == nil || found.Error.Code != "api_endpoint_unsupported" {
 		t.Fatalf("optional unsupported endpoint diagnostics changed: %#v", decoded.API.Endpoints)
 	}
+}
+
+func TestUniFiNormalizationFailureCodeContractAndDiagnostics(t *testing.T) {
+	now := "2026-11-26T00:00:00Z"
+	stats := validUniFiFixture("ucg-max")
+	stats.API = &UniFiAPIStats{
+		Enabled: true, Status: "partial", LastAttempt: &now, LastSuccess: &now,
+		Endpoints: []UniFiAPIEndpoint{
+			{Name: "info", Required: true, Status: "ok"},
+			{Name: "normalization", Required: true, Status: "error", Error: &ExtensionError{
+				Code: "api_normalization_failure", Message: "UniFi API data could not be normalized",
+				Source: "unifi-api", Retryable: true,
+			}},
+		},
+		Error: &ExtensionError{Code: "api_partial_failure", Message: "UniFi API returned a partial observation", Source: "unifi-api", Retryable: true},
+	}
+	raw, err := json.Marshal(stats)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := DecodeUniFiStatsJSON(raw)
+	if err != nil {
+		t.Fatalf("normalization error did not satisfy the UniFi API contract: %v", err)
+	}
+	if decoded.API == nil || len(decoded.API.Endpoints) != 2 || decoded.API.Endpoints[1].Error == nil || decoded.API.Endpoints[1].Error.Code != "api_normalization_failure" {
+		t.Fatalf("normalization error evidence was not preserved: %#v", decoded.API)
+	}
+	diagnostics := buildCollectionDiagnostics(ExtensionStats{UniFi: decoded}, nil)
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Component == "api.endpoint" && diagnostic.Resource == "normalization" && diagnostic.Code == "api_normalization_failure" {
+			return
+		}
+	}
+	t.Fatalf("normalization failure was not mapped to an endpoint diagnostic: %#v", diagnostics)
 }
 
 func TestUniFiPerDevicePoEContractRoundTripAndIsolation(t *testing.T) {

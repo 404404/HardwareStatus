@@ -139,7 +139,7 @@ func NewApp(opts Options) (*App, error) {
 		nodes:     make(map[string]*NodeState),
 		certs:     make(map[string]*CertState),
 		statsWake: make(chan struct{}, 1),
-		logger:    log.New(os.Stdout, "serverstatus ", log.LstdFlags|log.Lmicroseconds),
+		logger:    log.New(os.Stdout, "hardwarestatus-server ", log.LstdFlags|log.Lmicroseconds),
 	}
 	if err := app.loadMultiDeviceRuntime(runtime); err != nil {
 		cancel()

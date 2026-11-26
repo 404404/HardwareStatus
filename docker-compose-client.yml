@@ -1,12 +1,12 @@
 services:
-  serverstatus-client:
+  hardwarestatus-client:
     build:
       context: .
       dockerfile: Dockerfile.client
       args:
         ALPINE_IMAGE: "${CLIENT_ALPINE_IMAGE:-alpine:3.13}"
-    image: cppla/serverstatus:client
-    container_name: serverstatus-client
+    image: ghcr.io/404404/hardwarestatus-client:local
+    container_name: hardwarestatus-client
     restart: unless-stopped
     read_only: true
     security_opt:
@@ -41,11 +41,11 @@ services:
       HARDWARE_INTERVAL: "${HARDWARE_INTERVAL:-600}"
       DOCKER_INTERVAL: "${DOCKER_INTERVAL:-60}"
       DOCKER_CONTAINER_LIMIT: "${DOCKER_CONTAINER_LIMIT:-0}"
-      CLIENT_STATUS_DIR: "${CLIENT_STATUS_DIR:-/var/lib/serverstatus-client}"
+      CLIENT_STATUS_DIR: "${CLIENT_STATUS_DIR:-/var/lib/hardwarestatus-client}"
       HERMES_EXPORT_CONFIG: "${HERMES_EXPORT_CONFIG:-/app/hermes-exporter.json}"
       HERMES_ROOT: "${HERMES_ROOT:-/home/hermes}"
-      HERMES_STATUS_DIR: "${HERMES_STATUS_DIR:-/var/lib/serverstatus-client/hermes}"
-      HERMES_STATUS_FILE: "${HERMES_STATUS_FILE:-/var/lib/serverstatus-client/hermes/hermes.json}"
+      HERMES_STATUS_DIR: "${HERMES_STATUS_DIR:-/var/lib/hardwarestatus-client/hermes}"
+      HERMES_STATUS_FILE: "${HERMES_STATUS_FILE:-/var/lib/hardwarestatus-client/hermes/hermes.json}"
       HERMES_EXPORT_ENABLED: "${HERMES_EXPORT_ENABLED:-true}"
       HERMES_EXPORT_INTERVAL: "${HERMES_EXPORT_INTERVAL:-600}"
       HERMES_SNAPSHOT_INTERVAL: "${HERMES_SNAPSHOT_INTERVAL:-10}"
@@ -81,7 +81,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ${HERMES_EXPORT_CONFIG_HOST:-./hermes-exporter.json}:${HERMES_EXPORT_CONFIG:-/app/hermes-exporter.json}:ro
       - ${HERMES_ROOT_HOST:-/home/hermes}:${HERMES_ROOT:-/home/hermes}:ro
-      - ${CLIENT_STATUS_DIR_HOST:-./client-status}:${CLIENT_STATUS_DIR:-/var/lib/serverstatus-client}
+      - ${CLIENT_STATUS_DIR_HOST:-./client-status}:${CLIENT_STATUS_DIR:-/var/lib/hardwarestatus-client}
       # A disabled token path is genuinely absent to the collector. The
       # harmless /dev/null mount keeps this optional bind syntactically valid
       # without creating an empty credential file.

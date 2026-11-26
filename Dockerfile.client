@@ -1,32 +1,34 @@
+# Keep the established Python 3.8 Client runtime until a separate DSM/SMART/
+# psutil compatibility qualification approves a base-image change.
 ARG ALPINE_IMAGE=alpine:3.13
-ARG VERSION=2.5
+ARG VERSION=2.8
 ARG VCS_REF=unknown
 ARG BUILD_DATE=unknown
 ARG SOURCE_URL=https://github.com/404404/HardwareStatus
-ARG CATALOG_REVISION=486dacbcb8d0f14e5ee171ce99c6a5ffabc0fb62
-ARG CATALOG_SCHEMA_VERSION=1
-ARG CATALOG_SHA256=2251eddb656af89483a3497ca2fe46bf60339c3f96ae38b3390761d7f379a371
+ARG CATALOG_REVISION=3e090d8a18f11a76085914bd8fa44f1c4a9b039b
+ARG CATALOG_SCHEMA_VERSION=2
+ARG CATALOG_SHA256=ba59930b18e88df78bef35cc51ee2ba897169fb8cdcae20465aa69878c6664fa
 FROM ${ALPINE_IMAGE}
 
-ARG VERSION=2.5
+ARG VERSION=2.8
 ARG VCS_REF=unknown
 ARG BUILD_DATE=unknown
 ARG SOURCE_URL=https://github.com/404404/HardwareStatus
-ARG CATALOG_REVISION=486dacbcb8d0f14e5ee171ce99c6a5ffabc0fb62
-ARG CATALOG_SCHEMA_VERSION=1
-ARG CATALOG_SHA256=2251eddb656af89483a3497ca2fe46bf60339c3f96ae38b3390761d7f379a371
+ARG CATALOG_REVISION=3e090d8a18f11a76085914bd8fa44f1c4a9b039b
+ARG CATALOG_SCHEMA_VERSION=2
+ARG CATALOG_SHA256=ba59930b18e88df78bef35cc51ee2ba897169fb8cdcae20465aa69878c6664fa
 
 LABEL org.opencontainers.image.title="HardwareStatus Client" \
-    org.opencontainers.image.description="HardwareStatus host and Hermes profile collector" \
+    org.opencontainers.image.description="HardwareStatus host and optional Hermes Agent collector" \
     org.opencontainers.image.version="${VERSION}" \
     org.opencontainers.image.revision="${VCS_REF}" \
     org.opencontainers.image.created="${BUILD_DATE}" \
     org.opencontainers.image.source="${SOURCE_URL}" \
     org.opencontainers.image.licenses="MIT" \
-    io.hermesstatus.component="client" \
-    io.hermesstatus.unifi.catalog.revision="${CATALOG_REVISION}" \
-    io.hermesstatus.unifi.catalog.schema_version="${CATALOG_SCHEMA_VERSION}" \
-    io.hermesstatus.unifi.catalog.sha256="${CATALOG_SHA256}"
+    io.hardwarestatus.component="client" \
+    io.hardwarestatus.unifi.catalog.revision="${CATALOG_REVISION}" \
+    io.hardwarestatus.unifi.catalog.schema_version="${CATALOG_SCHEMA_VERSION}" \
+    io.hardwarestatus.unifi.catalog.sha256="${CATALOG_SHA256}"
 WORKDIR /app
 
 # smartmontools reads the configured host device; util-linux provides lscpu.
@@ -72,11 +74,11 @@ ENV INTERVAL=1 \
     HARDWARE_INTERVAL=600 \
     DOCKER_INTERVAL=60 \
     DOCKER_CONTAINER_LIMIT=0 \
-    CLIENT_STATUS_DIR=/var/lib/serverstatus-client \
+    CLIENT_STATUS_DIR=/var/lib/hardwarestatus-client \
     HERMES_EXPORT_CONFIG=/app/hermes-exporter.json \
     HERMES_ROOT=/home/hermes \
-    HERMES_STATUS_DIR=/var/lib/serverstatus-client/hermes \
-    HERMES_STATUS_FILE=/var/lib/serverstatus-client/hermes/hermes.json \
+    HERMES_STATUS_DIR=/var/lib/hardwarestatus-client/hermes \
+    HERMES_STATUS_FILE=/var/lib/hardwarestatus-client/hermes/hermes.json \
     HERMES_EXPORT_ENABLED=true \
     HERMES_EXPORT_INTERVAL=600 \
     HERMES_SNAPSHOT_INTERVAL=10 \
@@ -95,12 +97,13 @@ ENV INTERVAL=1 \
     EASYTIER_INTERVAL_SECONDS=30 \
     EASYTIER_TIMEOUT_SECONDS=5 \
     EASYTIER_ADMINISTRATIVE_ROLE= \
-    HERMESSTATUS_CLIENT_VERSION=${VERSION} \
-    HERMESSTATUS_CLIENT_REVISION=${VCS_REF} \
-    HERMESSTATUS_CLIENT_BUILD_TIME=${BUILD_DATE} \
-    HERMESSTATUS_UNIFI_CATALOG_REVISION=${CATALOG_REVISION} \
-    HERMESSTATUS_UNIFI_CATALOG_SCHEMA_VERSION=${CATALOG_SCHEMA_VERSION} \
-    HERMESSTATUS_UNIFI_CATALOG_SHA256=${CATALOG_SHA256}
+    HARDWARESTATUS_CLIENT_VERSION=${VERSION} \
+    HARDWARESTATUS_CLIENT_REVISION=${VCS_REF} \
+    HARDWARESTATUS_CLIENT_BUILD_TIME=${BUILD_DATE} \
+    HARDWARESTATUS_CLIENT_PROTOCOL=device_v2 \
+    HARDWARESTATUS_UNIFI_CATALOG_REVISION=${CATALOG_REVISION} \
+    HARDWARESTATUS_UNIFI_CATALOG_SCHEMA_VERSION=${CATALOG_SCHEMA_VERSION} \
+    HARDWARESTATUS_UNIFI_CATALOG_SHA256=${CATALOG_SHA256}
 
 RUN chmod +x /app/entrypoint.sh /app/unifi_askpass.py
 

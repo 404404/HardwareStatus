@@ -57,7 +57,7 @@ class ClientV2ConfigContractTests(unittest.TestCase):
         self.assertTrue(config.verify_tls)
         self.assertEqual(
             config.token_file,
-            "/run/secrets/hermesstatus-device-token",
+            "/run/secrets/hardwarestatus-device-token",
         )
 
     def test_cli_over_env_over_file_over_defaults(self):

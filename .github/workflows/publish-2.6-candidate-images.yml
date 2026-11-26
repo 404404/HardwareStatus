@@ -137,6 +137,7 @@ jobs:
             --source "${{ env.IMAGE_SOURCE }}"
 
   publish:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.repository == '404404/HardwareStatus' && startsWith(github.ref, 'refs/heads/codex/2.6-') }}
     needs: [contracts, go, python, frontend, compose, security, images]
     runs-on: ubuntu-latest
     timeout-minutes: 30

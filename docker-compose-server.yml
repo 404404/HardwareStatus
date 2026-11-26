@@ -1,15 +1,15 @@
 services:
-  serverstatus-server:
+  hardwarestatus-server:
     build:
       context: .
       dockerfile: Dockerfile.server
-    image: cppla/serverstatus:server
+    image: ghcr.io/404404/hardwarestatus-server:local
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/api/health"]
       interval: 30s
       timeout: 10s
       retries: 5
-    container_name: serverstatus-server
+    container_name: hardwarestatus-server
     restart: unless-stopped
     read_only: true
     security_opt:
@@ -17,11 +17,14 @@ services:
     tmpfs:
       - /tmp:size=16m,mode=1777,nosuid,nodev,noexec
     environment:
-      ADMIN_TOKEN: "${ADMIN_TOKEN:-}"
-      HTTP_ADDR: ":80"
-      AGENT_ADDR: ":35601"
+      HARDWARESTATUS_ADMIN_TOKEN: "${HARDWARESTATUS_ADMIN_TOKEN-${ADMIN_TOKEN-}}"
+      ADMIN_TOKEN: "${ADMIN_TOKEN-${HARDWARESTATUS_ADMIN_TOKEN-}}"
+      HARDWARESTATUS_HTTP_ADDR: "${HARDWARESTATUS_HTTP_ADDR-${HTTP_ADDR-:80}}"
+      HTTP_ADDR: "${HTTP_ADDR-${HARDWARESTATUS_HTTP_ADDR-:80}}"
+      HARDWARESTATUS_AGENT_ADDR: "${HARDWARESTATUS_AGENT_ADDR-${AGENT_ADDR-:35601}}"
+      AGENT_ADDR: "${AGENT_ADDR-${HARDWARESTATUS_AGENT_ADDR-:35601}}"
     networks:
-      serverstatus-network:
+      hardwarestatus-network:
         ipv4_address: 172.23.0.2
     volumes:
       - ./server/config.json:/app/config/config.json:ro
@@ -31,7 +34,7 @@ services:
       - 8080:80
 
 networks:
-  serverstatus-network:
+  hardwarestatus-network:
     ipam:
       config:
         - subnet: 172.23.0.0/24

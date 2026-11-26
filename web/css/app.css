@@ -223,6 +223,13 @@ body.light .unifi-page-empty{background:var(--panel)}
 .unifi-ports{padding:0 1.35rem 1.1rem}
 .unifi-ports-table{min-width:1180px!important}
 .unifi-ports-table td,.unifi-ports-table th{white-space:nowrap}
+.unifi-rps{padding:0 1.35rem 1.1rem}
+.unifi-rps-content{display:grid;gap:1rem}
+.unifi-rps-device{min-width:0;padding:.85rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--panel-alt,transparent)}
+.unifi-rps-summary{display:flex;flex-wrap:wrap;gap:.5rem 1.1rem;padding-bottom:.75rem;color:var(--text-dim);font-size:12px;font-weight:650}
+.unifi-rps-summary strong{color:var(--text);font-size:14px}
+.unifi-rps-table{min-width:1180px!important}
+.unifi-rps-table td,.unifi-rps-table th{white-space:nowrap}
 .unifi-device-tabs{padding:0 1.35rem 1.1rem}
 .unifi-device-tabs .unifi-network-tabs{padding:0 0 .8rem;border-bottom:1px solid var(--border)}
 .unifi-model-unavailable{padding:.75rem 0;color:var(--text-dim);font-size:12px;font-weight:700}

@@ -1,9 +1,9 @@
 # Synology DSM Container Manager template for the Client only.
-# Set HERMESSTATUS_CLIENT_TAG to the exact approved candidate tag.
+# Set HARDWARESTATUS_CLIENT_TAG to the exact approved candidate tag.
 services:
-  hermesstatus-client:
-    image: ghcr.io/404404/hermesstatus-client:${HERMESSTATUS_CLIENT_TAG:?set approved immutable candidate tag}
-    container_name: hermesstatus-client-2x
+  hardwarestatus-client:
+    image: ghcr.io/404404/hardwarestatus-client:${HARDWARESTATUS_CLIENT_TAG:?set approved immutable candidate tag}
+    container_name: hardwarestatus-client
     restart: unless-stopped
     read_only: true
     network_mode: host
@@ -14,22 +14,28 @@ services:
       - no-new-privileges:true
     tmpfs:
       - /tmp:size=32m,mode=1777,nosuid,nodev,noexec
+      - /run/hardwarestatus:size=4m,mode=0700,nosuid,nodev,noexec
       - /run/hermesstatus:size=4m,mode=0700,nosuid,nodev,noexec
     environment:
-      CLIENT_STATUS_DIR: /var/lib/serverstatus-client
+      CLIENT_STATUS_DIR: /var/lib/hardwarestatus-client
+      HERMES_STATUS_DIR: /var/lib/hardwarestatus-client/hermes
+      HERMES_STATUS_FILE: /var/lib/hardwarestatus-client/hermes/hermes.json
       HOST_OS_RELEASE_FILE: /host/etc/os-release
       DSM_VERSION_FILE: /host/etc.defaults/VERSION
       HWMON_ROOT: /sys/class/hwmon
       DOCKER_SOCKET: /var/run/docker.sock
-      HERMESSTATUS_CONFIG_FILE: /run/secrets/hermesstatus/client-config.json
+      HARDWARESTATUS_CONFIG_FILE: /run/secrets/hardwarestatus/client-config.json
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /etc/os-release:/host/etc/os-release:ro
       - ${DSM_VERSION_FILE_HOST:-/etc.defaults/VERSION}:/host/etc.defaults/VERSION:ro
       - /sys/class/hwmon:/sys/class/hwmon:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /volume1/docker/status/config/client-config.json:/run/secrets/hardwarestatus/client-config.json:ro
       - /volume1/docker/status/config/client-config.json:/run/secrets/hermesstatus/client-config.json:ro
+      - ${DEVICE_TOKEN_HOST:-/volume1/docker/status/secrets/device-token}:/run/secrets/hardwarestatus-device-token:ro
       - ${DEVICE_TOKEN_HOST:-/volume1/docker/status/secrets/device-token}:/run/secrets/hermesstatus-device-token:ro
+      - /volume1/docker/status/status:/var/lib/hardwarestatus-client
       - /volume1/docker/status/status:/var/lib/serverstatus-client
       # Mount only the explicitly configured data-volume probe roots.
       - /volume1:/host-storage/volume1:ro

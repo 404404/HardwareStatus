@@ -1,10 +1,12 @@
 # Unified Client configuration
 
 The preferred Client configuration is the strict JSON document validated by
-`schemas/client-config.schema.json`. Set `HERMESSTATUS_CONFIG_FILE` to a
-read-only mount, conventionally
-`/run/secrets/hermesstatus/client-config.json`; keep the Device v2 token as the
-separate read-only `/run/secrets/hermesstatus-device-token` mount.
+`schemas/client-config.schema.json`. Set `HARDWARESTATUS_CONFIG_FILE` (legacy
+alias `HERMESSTATUS_CONFIG_FILE`) to a read-only mount, conventionally
+`/run/secrets/hardwarestatus/client-config.json`; keep the Device v2 token as
+the separate read-only `/run/secrets/hardwarestatus-device-token` mount. The
+deployment examples retain old in-container credential mount aliases for
+existing config documents; host-side source paths are unchanged.
 
 `schema_version: 1` contains explicit `server`, `device`, `collection`, and
 `collectors` objects. Current collector objects are `hardware`, `filesystem`,
@@ -14,7 +16,7 @@ are rejected.
 
 The root-owned configuration may reference collector secret files. At startup
 the Client materializes only the required values into its private
-`/run/hermesstatus` tmpfs (`0700`, `nosuid,nodev,noexec`); it never puts them in
+`/run/hardwarestatus` tmpfs (`0700`, `nosuid,nodev,noexec`); it never puts them in
 environment values, arguments, logs, Device v2, diagnostics, or the UI.
 
 UniFi settings are conditional on the enabled collector and include only

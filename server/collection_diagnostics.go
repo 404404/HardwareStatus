@@ -328,6 +328,33 @@ func buildCollectionDiagnostics(extension ExtensionStats, issues []extensionDeco
 				addCollectionErrorDiagnostic(&diagnostics, seen, "unifi", "api.endpoint", endpointName, "unifi.api.endpoints[].error", endpoint.Error)
 			}
 		}
+		rpsStatus := "not_observed"
+		var rpsError *ExtensionError
+		if extension.UniFi.RPS != nil {
+			rpsError = extension.UniFi.RPS.Error
+			switch extension.UniFi.RPS.CollectionStatus {
+			case "available":
+				rpsStatus = "available"
+				if extension.UniFi.RPS.Stale {
+					rpsStatus = "stale"
+				}
+			case "partial":
+				rpsStatus = "partial"
+			case "unavailable":
+				rpsStatus = "unavailable"
+			case "not_observed":
+				rpsStatus = "not_observed"
+			}
+		}
+		rpsDiagnostic := CollectionDiagnostic{
+			Domain: "unifi", Component: "rps", Status: rpsStatus,
+			Source: "legacy_stat_device", Field: "unifi.rps",
+		}
+		if rpsError != nil {
+			rpsDiagnostic.Code = safeExtensionDiagnostic(rpsError.Code)
+			rpsDiagnostic.Reason = safeExtensionDiagnostic(rpsError.Message)
+		}
+		appendCollectionDiagnostic(&diagnostics, seen, rpsDiagnostic)
 	}
 	if extension.ClientBuild == nil {
 		addCollectionDomainDiagnostic(&diagnostics, seen, "client_build", "client_build", false, false, nil, "")

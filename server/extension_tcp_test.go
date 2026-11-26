@@ -15,7 +15,7 @@ import (
 func TestTCPStructuredUpdateAndDomainFailureIsolation(t *testing.T) {
 	app := newTestApp(t, minimalTestConfig())
 	var logs bytes.Buffer
-	app.logger = log.New(&logs, "serverstatus ", 0)
+	app.logger = log.New(&logs, "hardwarestatus-server ", 0)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)

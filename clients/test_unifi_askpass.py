@@ -23,6 +23,30 @@ class AskpassProgramTests(unittest.TestCase):
             self.assertEqual(result.stdout, "prompt-secret\n")
             self.assertEqual(result.stderr, "")
 
+    def test_accepts_canonical_path_and_rejects_conflicting_aliases(self):
+        script = Path(__file__).with_name("unifi_askpass.py")
+        with tempfile.NamedTemporaryFile(mode="w+") as handle:
+            handle.write("credential\n")
+            handle.flush()
+            os.chmod(handle.name, 0o600)
+            result = subprocess.run(
+                [sys.executable, str(script)],
+                env={"HARDWARESTATUS_UNIFI_CREDENTIAL_FILE": handle.name},
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(result.stdout, "credential\n")
+            conflict = subprocess.run(
+                [sys.executable, str(script)],
+                env={
+                    "HARDWARESTATUS_UNIFI_CREDENTIAL_FILE": handle.name,
+                    "HERMESSTATUS_UNIFI_CREDENTIAL_FILE": handle.name + ".other",
+                },
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False,
+            )
+            self.assertNotEqual(conflict.returncode, 0)
+            self.assertEqual(conflict.stdout, "")
+
     def test_rejects_missing_or_world_readable_file(self):
         script = Path(__file__).with_name("unifi_askpass.py")
         env = {"HERMESSTATUS_UNIFI_CREDENTIAL_FILE": "/tmp/does-not-exist"}

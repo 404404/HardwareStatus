@@ -33,6 +33,29 @@ mounted filesystem usable capacity 覆盖。
 PoE column visibility 和 maximum port speed 都是静态能力决策。运行时缺失不是非 PoE 证明，协商
 速度也不是硬件 maximum。
 
+## 可选 USP-RPS 组件
+
+RPS 遥测是独立、可选的 `unifi.rps` 组件，复用现有有界只读
+`legacy_stat_device` API 观测；不增加任意 endpoint 或远程命令。先用固定 Catalog 中精确且
+verified 的 `USP RPS` API identity 识别 controller device，再仅通过精确内部 device identity
+关联 Legacy 观测。名称、IP、列表顺序或型号能力本身都不能建立受保护设备关系。
+
+Catalog model schema v2 将六个编号 DC 输出与 RJ45 管理接口分开。11.5 V / 350 W 和
+52 V / 600 W 是两项独立静态电源轨额定能力，不相加成单一可用容量、不复制为运行时读数，也不在
+证据不足时分配到每个输出。运行时遥测仅保留为每口观察到的 12 V / 54 V 输出总线读数，
+不映射到 Catalog 中名称不同的静态额定轨。
+
+`connected_standby` 与 `delivering_power` 是不同状态；`power_active` 和
+`power_delivering` 是分别采集、可为空的观测。只有同一端口的 12 V 和 54 V 输出总线功率读数
+都存在时才显示该口实测功率；总功率仅在同次采样六路完整时求和，并标为
+`same_sample_port_sum`，否则功率保持 null。
+不解释未经验证的 `power_source` 数值映射，也不把 RPS 正在供电视为 AC 故障——受保护设备的
+AC 输入可能是有意断开。
+
+RPS 使用独立有界 schema version 和 `unifi/rps` 组件诊断。`not_observed`、`partial`、
+`unavailable` 和 `stale` 仅作用于 RPS，不降低普通 UniFi 设备监控状态。不会通过触发故障切换或
+电源切换来获取遥测。
+
 ## 失败与安全边界
 
 host-key、authentication、timeout、TLS、transport 和 parsing failure 会在有旧快照时保留它、标记

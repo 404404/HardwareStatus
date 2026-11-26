@@ -15,6 +15,44 @@ permissions:
   contents: read
 
 jobs:
+  catalog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      revision: ${{ steps.lock.outputs.revision }}
+      schema_version: ${{ steps.lock.outputs.schema_version }}
+      sha256: ${{ steps.lock.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Read Catalog lock
+        id: lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -c 'import json; p=json.load(open("unifi-catalog.lock.json", encoding="utf-8")); print("revision=" + p["revision"]); print("schema_version=" + str(p["schema_version"])); print("sha256=" + p["catalog_sha256"])' >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v5
+        with:
+          repository: 404404/UniFi_Catalog
+          ref: ${{ steps.lock.outputs.revision }}
+          path: external/UniFi_Catalog
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Install Catalog validation dependency
+        run: python3 -m pip install --disable-pip-version-check --no-input -r external/UniFi_Catalog/requirements-dev.txt
+      - name: Validate and stage locked Catalog
+        run: |
+          python3 scripts/acquire_unifi_catalog.py \
+            --source-dir external/UniFi_Catalog \
+            --output-dir clients/unifi_catalog
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hardwarestatus-ci-catalog
+          path: clients/unifi_catalog
+          if-no-files-found: error
+
   contracts:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -51,10 +89,15 @@ jobs:
       - run: go build ./...
 
   python:
+    needs: catalog
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: hardwarestatus-ci-catalog
+          path: clients/unifi_catalog
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
@@ -62,6 +105,81 @@ jobs:
       - run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
       - run: python3 -m py_compile clients/client-linux.py clients/client-psutil.py clients/host_collector.py scripts/export-hermes-status.py scripts/hermes_config_summary.py
       - run: sh -n clients/entrypoint.sh && bash -n status.sh
+
+  client-runtime:
+    needs: catalog
+    # Python 3.8 is not available from setup-python on the current ubuntu-latest image.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: hardwarestatus-ci-catalog
+          path: clients/unifi_catalog
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.8"
+      - name: Install the Client's runtime test dependencies
+        run: python3 -m pip install --disable-pip-version-check --no-input "psutil==6.1.1" "PyYAML==6.0.2"
+      - name: Reproduce the failed candidate's Python 3.8 metadata crash
+        shell: bash
+        run: |
+          set -euo pipefail
+          old_source="$RUNNER_TEMP/failed-host-collector.py"
+          git show 05d5d51e943bad1a46d181f63b8496b0752de3be:clients/host_collector.py > "$old_source"
+          PYTHONPATH="$GITHUB_WORKSPACE/clients" FAILED_HOST_COLLECTOR="$old_source" python3 - <<'PY'
+          import importlib.util
+          import os
+
+          path = os.environ["FAILED_HOST_COLLECTOR"]
+          spec = importlib.util.spec_from_file_location("failed_candidate_host_collector", path)
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          metadata = {
+              "HARDWARESTATUS_CLIENT_VERSION": "2.8",
+              "HARDWARESTATUS_CLIENT_REVISION": "a" * 40,
+              "HARDWARESTATUS_CLIENT_PROTOCOL": "device_v2",
+          }
+          try:
+              module.collect_client_build(metadata)
+          except AttributeError as error:
+              if "removeprefix" not in str(error):
+                  raise
+              print("FAILED_CANDIDATE_REPRODUCED=PASS")
+          else:
+              raise SystemExit("failed candidate no longer reproduces the known Python 3.8 error")
+          PY
+      - name: Run all Client tests on Python 3.8
+        run: python3 -m unittest discover -s clients -p 'test_*.py'
+      - name: Compile every Python source copied into the Client image
+        run: >-
+          python3 -m py_compile
+          clients/client-linux.py
+          clients/client-psutil.py
+          clients/multi_device_contracts.py
+          clients/client_config_v1.py
+          clients/secure_file.py
+          clients/device_client_config.py
+          clients/device_client_transport.py
+          clients/host_collector.py
+          clients/lucky_collector.py
+          clients/easytier_collector.py
+          clients/unifi_collector.py
+          clients/unifi_model_catalog.py
+          clients/unifi_api.py
+          clients/unifi_profile_loader.py
+          clients/unifi_source_registry.py
+          clients/unifi_raw_collector.py
+          clients/unifi_ssh_transport.py
+          clients/unifi_askpass.py
+          clients/unifi_normalizer.py
+          scripts/export-hermes-status.py
+          scripts/hermes_config_summary.py
+          scripts/client_image_unifi_fixture.py
+      - run: sh -n clients/entrypoint.sh
 
   frontend:
     runs-on: ubuntu-latest
@@ -84,17 +202,26 @@ jobs:
       - run: SERVER=192.0.2.10 SERVERSTATUS_USER=ci-node PASSWORD=ci-placeholder CLIENT_PRIVILEGED=false HERMES_ROOT_HOST=/tmp/hermes CLIENT_STATUS_DIR_HOST=/tmp/client-status docker compose -f docker-compose-client.yml config --quiet
 
   images:
+    needs: [catalog, contracts, go, python, client-runtime, frontend, compose, security]
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: hardwarestatus-ci-catalog
+          path: clients/unifi_catalog
       - uses: docker/setup-buildx-action@v3
+      # The image smoke uses Node to render Server-projected UniFi HTML.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - name: Prepare image provenance
         id: provenance
         shell: bash
         run: |
-          echo "candidate_tag=2.5-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
-          echo "product_version=2.5" >> "$GITHUB_OUTPUT"
+          echo "candidate_tag=2.8-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          echo "product_version=2.8" >> "$GITHUB_OUTPUT"
           echo "vcs_ref=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
           echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
           echo "source=https://github.com/404404/HardwareStatus" >> "$GITHUB_OUTPUT"
@@ -104,40 +231,61 @@ jobs:
           file: Dockerfile.server
           push: false
           load: true
-          tags: hermesstatus-server:${{ steps.provenance.outputs.candidate_tag }}
+          tags: hardwarestatus-server:${{ steps.provenance.outputs.candidate_tag }}
           build-args: |
             VERSION=${{ steps.provenance.outputs.product_version }}
             VCS_REF=${{ steps.provenance.outputs.vcs_ref }}
             BUILD_DATE=${{ steps.provenance.outputs.build_date }}
             SOURCE_URL=${{ steps.provenance.outputs.source }}
+            CATALOG_REVISION=${{ needs.catalog.outputs.revision }}
+            CATALOG_SCHEMA_VERSION=${{ needs.catalog.outputs.schema_version }}
+            CATALOG_SHA256=${{ needs.catalog.outputs.sha256 }}
           cache-from: type=gha,scope=server
           cache-to: type=gha,mode=max,scope=server
-      - run: docker image inspect hermesstatus-server:${{ steps.provenance.outputs.candidate_tag }} --format '{{json .Config.Entrypoint}}' | grep serverstatus
+      - run: docker image inspect hardwarestatus-server:${{ steps.provenance.outputs.candidate_tag }} --format '{{json .Config.Entrypoint}}' | grep hardwarestatus-server
       - uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.client
           push: false
           load: true
-          tags: hermesstatus-client:${{ steps.provenance.outputs.candidate_tag }}
+          tags: hardwarestatus-client:${{ steps.provenance.outputs.candidate_tag }}
           build-args: |
             VERSION=${{ steps.provenance.outputs.product_version }}
             VCS_REF=${{ steps.provenance.outputs.vcs_ref }}
             BUILD_DATE=${{ steps.provenance.outputs.build_date }}
             SOURCE_URL=${{ steps.provenance.outputs.source }}
+            CATALOG_REVISION=${{ needs.catalog.outputs.revision }}
+            CATALOG_SCHEMA_VERSION=${{ needs.catalog.outputs.schema_version }}
+            CATALOG_SHA256=${{ needs.catalog.outputs.sha256 }}
           cache-from: type=gha,scope=client
           cache-to: type=gha,mode=max,scope=client
-      - run: docker image inspect hermesstatus-client:${{ steps.provenance.outputs.candidate_tag }} --format '{{json .Config.Entrypoint}}' | grep entrypoint.sh
+      - run: docker image inspect hardwarestatus-client:${{ steps.provenance.outputs.candidate_tag }} --format '{{json .Config.Entrypoint}}' | grep entrypoint.sh
       - name: Validate image provenance
         run: |
           python3 scripts/validate_image_provenance.py \
-            --server-image hermesstatus-server:${{ steps.provenance.outputs.candidate_tag }} \
-            --client-image hermesstatus-client:${{ steps.provenance.outputs.candidate_tag }} \
+            --server-image hardwarestatus-server:${{ steps.provenance.outputs.candidate_tag }} \
+            --client-image hardwarestatus-client:${{ steps.provenance.outputs.candidate_tag }} \
             --candidate-tag "${{ steps.provenance.outputs.candidate_tag }}" \
             --version "${{ steps.provenance.outputs.product_version }}" \
             --revision "${{ steps.provenance.outputs.vcs_ref }}" \
             --created "${{ steps.provenance.outputs.build_date }}" \
-            --source "${{ steps.provenance.outputs.source }}"
+            --source "${{ steps.provenance.outputs.source }}" \
+            --catalog-revision "${{ needs.catalog.outputs.revision }}" \
+            --catalog-schema-version "${{ needs.catalog.outputs.schema_version }}" \
+            --catalog-sha256 "${{ needs.catalog.outputs.sha256 }}" \
+            --require-server-catalog-provenance
+      - name: Exercise the actual Client entrypoint against the isolated Server
+        run: |
+          set -euo pipefail
+          python3 scripts/client_image_smoke.py \
+            --server-image "hardwarestatus-server:${{ steps.provenance.outputs.candidate_tag }}" \
+            --client-image "hardwarestatus-client:${{ steps.provenance.outputs.candidate_tag }}" \
+            --source-sha "${GITHUB_SHA}" \
+            --version "${{ steps.provenance.outputs.product_version }}" \
+            --catalog-revision "${{ needs.catalog.outputs.revision }}" \
+            --catalog-schema-version "${{ needs.catalog.outputs.schema_version }}" \
+            --catalog-sha256 "${{ needs.catalog.outputs.sha256 }}"
 
   security:
     runs-on: ubuntu-latest
@@ -148,74 +296,3 @@ jobs:
           fetch-depth: 0
       - run: python3 scripts/check_release_boundaries.py
       - run: python3 scripts/check_unifi_static_authority.py
-
-  publish_2_6_candidate:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'codex/2.6-') }}
-    permissions:
-      contents: read
-      packages: write
-    needs: [contracts, go, python, frontend, compose, security, images]
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v5
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Prepare immutable candidate
-        id: provenance
-        shell: bash
-        env:
-          SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          candidate_tag=$(printf '2.6-%.12s' "$SOURCE_SHA")
-          for image in ghcr.io/${{ github.repository_owner }}/hermesstatus-server:$candidate_tag ghcr.io/${{ github.repository_owner }}/hermesstatus-client:$candidate_tag; do
-            if docker buildx imagetools inspect "$image" >/dev/null 2>&1; then
-              echo "refusing to overwrite existing immutable candidate: $image"
-              exit 1
-            fi
-          done
-          echo "candidate_tag=$candidate_tag" >> "$GITHUB_OUTPUT"
-          echo "vcs_ref=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
-          echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile.server
-          push: true
-          platforms: linux/amd64
-          tags: ghcr.io/${{ github.repository_owner }}/hermesstatus-server:${{ steps.provenance.outputs.candidate_tag }}
-          labels: |
-            org.opencontainers.image.title=HardwareStatus Server
-            org.opencontainers.image.version=2.6
-            org.opencontainers.image.revision=${{ steps.provenance.outputs.vcs_ref }}
-            org.opencontainers.image.created=${{ steps.provenance.outputs.build_date }}
-            org.opencontainers.image.source=https://github.com/404404/HardwareStatus
-            io.hermesstatus.component=server
-          build-args: |
-            VERSION=2.6
-            VCS_REF=${{ steps.provenance.outputs.vcs_ref }}
-            BUILD_DATE=${{ steps.provenance.outputs.build_date }}
-            SOURCE_URL=https://github.com/404404/HardwareStatus
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile.client
-          push: true
-          platforms: linux/amd64
-          tags: ghcr.io/${{ github.repository_owner }}/hermesstatus-client:${{ steps.provenance.outputs.candidate_tag }}
-          labels: |
-            org.opencontainers.image.title=HardwareStatus Client
-            org.opencontainers.image.version=2.6
-            org.opencontainers.image.revision=${{ steps.provenance.outputs.vcs_ref }}
-            org.opencontainers.image.created=${{ steps.provenance.outputs.build_date }}
-            org.opencontainers.image.source=https://github.com/404404/HardwareStatus
-            io.hermesstatus.component=client
-          build-args: |
-            VERSION=2.6
-            VCS_REF=${{ steps.provenance.outputs.vcs_ref }}
-            BUILD_DATE=${{ steps.provenance.outputs.build_date }}
-            SOURCE_URL=https://github.com/404404/HardwareStatus

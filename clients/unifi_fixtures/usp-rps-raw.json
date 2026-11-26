@@ -1,0 +1,34 @@
+{
+  "collected_at": "2026-11-22T14:10:54Z",
+  "devices": [
+    {"id": "rps-device-01", "model": "USP RPS", "macAddress": "rps-identity-01", "state": "ONLINE", "firmwareVersion": "7.2.123"},
+    {"id": "protected-device-hd24", "model": "USW Pro HD 24", "macAddress": "protected-identity-05", "state": "ONLINE"},
+    {"id": "protected-device-promax24", "model": "USW Pro Max 24 PoE", "macAddress": "protected-identity-06", "state": "ONLINE"}
+  ],
+  "legacy_stat_device": {
+    "data": [
+      {
+        "mac": "rps-identity-01",
+        "model": "USPRPS",
+        "type": "usw",
+        "last_seen": "2026-11-22T14:10:25Z",
+        "rps": {
+          "power_delivering_12v": null,
+          "power_delivering_54v": null,
+          "power_supply_12v": null,
+          "power_supply_54v": null,
+          "power_remaining_12v": null,
+          "power_remaining_54v": null,
+          "rps_port_table": [
+            {"port_idx": 1, "port_state": "disconnected", "power_active": false, "power_delivering": false, "power_12v_voltage": "0", "power_12v_current": "0", "power_12v_power": "0", "power_54v_voltage": "0", "power_54v_current": "0", "power_54v_power": "0"},
+            {"port_idx": 2, "port_state": "disconnected", "power_active": false, "power_delivering": false, "power_12v_voltage": "0", "power_12v_current": "0", "power_12v_power": "0", "power_54v_voltage": "0", "power_54v_current": "0", "power_54v_power": "0"},
+            {"port_idx": 3, "port_state": "disconnected", "power_active": false, "power_delivering": false, "power_12v_voltage": "0", "power_12v_current": "0", "power_12v_power": "0", "power_54v_voltage": "0", "power_54v_current": "0", "power_54v_power": "0"},
+            {"port_idx": 4, "port_state": "disconnected", "power_active": false, "power_delivering": false, "power_12v_voltage": "0", "power_12v_current": "0", "power_12v_power": "0", "power_54v_voltage": "0", "power_54v_current": "0", "power_54v_power": "0"},
+            {"port_idx": 5, "port_state": "power_delivering", "power_active": true, "power_delivering": true, "peer": {"mac": "protected-identity-05", "model": "USW Pro HD 24"}, "power_12v_voltage": "11.471", "power_12v_current": "1.755", "power_12v_power": "21", "power_54v_voltage": "0", "power_54v_current": "0", "power_54v_power": "0"},
+            {"port_idx": 6, "port_state": "power_delivering", "power_active": true, "power_delivering": true, "peer": {"mac": "protected-identity-06", "model": "USW Pro Max 24 PoE"}, "power_12v_voltage": "11.469", "power_12v_current": "1.065", "power_12v_power": "13", "power_54v_voltage": "51.468", "power_54v_current": "1.29", "power_54v_power": "67"}
+          ]
+        }
+      }
+    ]
+  }
+}

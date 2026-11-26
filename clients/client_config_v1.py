@@ -19,7 +19,10 @@ from typing import Any, Mapping
 
 
 SCHEMA_VERSION = 1
-CANONICAL_DEVICE_TOKEN_PATH = "/run/secrets/hermesstatus-device-token"
+CANONICAL_DEVICE_TOKEN_PATH = "/run/secrets/hardwarestatus-device-token"
+LEGACY_DEVICE_TOKEN_PATH = "/run/secrets/hermesstatus-device-token"
+CANONICAL_PRIVATE_RUNTIME_DIR = "/run/hardwarestatus"
+LEGACY_PRIVATE_RUNTIME_DIR = "/run/hermesstatus"
 MAX_CONFIG_BYTES = 128 << 10
 MAX_SECRET_BYTES = 4096
 ALLOWED_PLATFORMS = {"linux", "synology", "macos", "windows"}
@@ -347,7 +350,7 @@ def parse_unified_document(document: Mapping[str, Any]) -> dict[str, Any]:
     values.update({
         "device_id": device_id, "device_name": display_name,
         "device_fqdn": device.get("fqdn"),
-        "token_file": CANONICAL_DEVICE_TOKEN_PATH,
+        "token_file": default_device_token_path(),
         "platform": platform,
         "collection_interval_seconds": collection_interval,
     })
@@ -382,8 +385,29 @@ def parse_unified_document(document: Mapping[str, Any]) -> dict[str, Any]:
     return values
 
 
-def materialize_unified_collectors(collectors: Mapping[str, Any], root: str = "/run/hermesstatus") -> dict[str, Any]:
+def default_device_token_path(is_file=None) -> str:
+    """Prefer the new fixed token path, retaining old Compose mounts on upgrade."""
+    if is_file is None:
+        is_file = os.path.isfile
+    if is_file(CANONICAL_DEVICE_TOKEN_PATH):
+        return CANONICAL_DEVICE_TOKEN_PATH
+    if is_file(LEGACY_DEVICE_TOKEN_PATH):
+        return LEGACY_DEVICE_TOKEN_PATH
+    return CANONICAL_DEVICE_TOKEN_PATH
+
+
+def default_private_runtime_dir(is_dir=os.path.isdir) -> str:
+    if is_dir(CANONICAL_PRIVATE_RUNTIME_DIR):
+        return CANONICAL_PRIVATE_RUNTIME_DIR
+    if is_dir(LEGACY_PRIVATE_RUNTIME_DIR):
+        return LEGACY_PRIVATE_RUNTIME_DIR
+    return CANONICAL_PRIVATE_RUNTIME_DIR
+
+
+def materialize_unified_collectors(collectors: Mapping[str, Any], root=None) -> dict[str, Any]:
     """Materialize validated secret values into fixed private tmpfs paths."""
+    if root is None:
+        root = default_private_runtime_dir()
     root_path = Path(root)
     root_path.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(root_path, 0o700)

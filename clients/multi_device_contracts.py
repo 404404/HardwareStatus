@@ -81,7 +81,7 @@ UNIFI_PROFILE_IDS = frozenset({"udw", "ucg-max"})
 UNIFI_USERNAME_RE = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
 UNIFI_API_FINGERPRINT_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 
-ENV_TO_FIELD = {
+_LEGACY_ENV_TO_FIELD = {
     "HERMESSTATUS_SERVER_URL": "server_url",
     "HERMESSTATUS_DEVICE_ID": "device_id",
     "HERMESSTATUS_DEVICE_NAME": "device_name",
@@ -96,6 +96,15 @@ ENV_TO_FIELD = {
     "HERMESSTATUS_PRIMARY_SMART_DEVICE": "primary_smart_device",
     "HERMESSTATUS_FILESYSTEM_PROBES": "filesystem_probes",
 }
+_CANONICAL_ENV_TO_FIELD = {
+    key.replace("HERMESSTATUS_", "HARDWARESTATUS_", 1): value
+    for key, value in _LEGACY_ENV_TO_FIELD.items()
+}
+ENV_TO_FIELD = {**_LEGACY_ENV_TO_FIELD, **_CANONICAL_ENV_TO_FIELD}
+ENV_ALIAS_PAIRS = tuple(
+    (key.replace("HERMESSTATUS_", "HARDWARESTATUS_", 1), key)
+    for key in _LEGACY_ENV_TO_FIELD
+)
 ALLOWED_FIELDS = {
     "server_url",
     "device_id",
@@ -266,6 +275,7 @@ def resolve_client_config(
     cli = dict(cli or {})
     env = dict(env or {})
     file_values = dict(file_values or {})
+    validate_environment_aliases(env)
     _reject_ambiguous(cli, "CLI")
     _reject_ambiguous(env, "environment")
     _reject_unknown(cli, ALLOWED_FIELDS, "CLI")
@@ -391,6 +401,14 @@ def resolve_client_config(
         platform=str(merged.get("platform") or "linux"),
         unified_collectors=merged.get("unified_collectors"),
     )
+
+
+def validate_environment_aliases(environment: Mapping[str, Any]) -> None:
+    """Reject conflicting canonical/legacy spellings without exposing values."""
+    for canonical, legacy in ENV_ALIAS_PAIRS:
+        if canonical in environment and legacy in environment:
+            if environment[canonical] != environment[legacy]:
+                raise ClientContractError("canonical and legacy environment aliases conflict")
 
 
 def _json_value(value: Any, field: str) -> Any:
