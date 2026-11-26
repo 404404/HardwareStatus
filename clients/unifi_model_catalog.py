@@ -417,6 +417,8 @@ def project_static_capabilities(model):
     if model.get("schema_version") == 2 and model.get("device_type") == "rps":
         fields = ("schema_version", "canonical_sku", "display_name", "device_type", "management_interface", "dc_outputs", "dc_power_rails")
         return {field: copy.deepcopy(model[field]) for field in fields}
+    if model.get("schema_version") != 1 or model.get("device_type") not in MODEL_TYPES:
+        return None
     fields = ("schema_version", "canonical_sku", "display_name", "device_type", "ports", "storage", "power", "fans")
     result = {field: copy.deepcopy(model[field]) for field in fields}
     if "processor" in model:

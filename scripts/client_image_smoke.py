@@ -21,9 +21,13 @@ class SmokeFailure(RuntimeError):
     pass
 
 
-def _run(command, *, timeout=90, check=True):
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _run(command, *, timeout=90, check=True, input_text=None):
     result = subprocess.run(
         command,
+        input=input_text,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -290,6 +294,126 @@ def _wait_for_accepted_report(server_name, client_name, device_id, arguments):
     raise SmokeFailure("actual Client report was not accepted before timeout")
 
 
+def _wait_for_unifi_fixture_report(server_name, device_id, previous_received_at, arguments):
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline:
+        snapshot = _server_stats(server_name)
+        devices = snapshot.get("servers")
+        if isinstance(devices, list):
+            for device in devices:
+                if not isinstance(device, dict) or device.get("device_id") != device_id:
+                    continue
+                if device.get("received_at") == previous_received_at:
+                    break
+                build = device.get("client_build")
+                unifi = device.get("unifi")
+                if (
+                    device.get("protocol_mode") != "device_v2"
+                    or device.get("stale") is not False
+                    or not isinstance(build, dict)
+                    or build.get("revision") != arguments.source_sha
+                    or not isinstance(unifi, dict)
+                ):
+                    raise SmokeFailure("Server output did not retain the fixture Device v2 report")
+                _verify_unifi_fixture_projection(unifi)
+                return unifi
+        time.sleep(1)
+    raise SmokeFailure("isolated Server did not expose the accepted UniFi fixture report")
+
+
+def _verify_unifi_fixture_projection(unifi):
+    api = unifi.get("api") if isinstance(unifi.get("api"), dict) else {}
+    telemetry = api.get("telemetry") if isinstance(api.get("telemetry"), dict) else {}
+    rps = unifi.get("rps") if isinstance(unifi.get("rps"), dict) else {}
+    rps_devices = rps.get("devices") if isinstance(rps.get("devices"), list) else []
+    if (
+        unifi.get("profile") != "ucg-max"
+        or unifi.get("transport", {}).get("status") != "available"
+        or unifi.get("stale") is not False
+        or api.get("status") != "available"
+        or not rps_devices
+        or len(rps_devices[0].get("ports", [])) != 6
+        or rps_devices[0].get("total_output_power_w") != 101
+    ):
+        raise SmokeFailure("Server rejected or changed the sanitized RPS fixture projection")
+    ports = telemetry.get("ports") if isinstance(telemetry.get("ports"), list) else []
+    if any(port.get("device_id") == "rps-device-01" for port in ports if isinstance(port, dict)):
+        raise SmokeFailure("RPS DC outputs leaked into Ethernet port records")
+    promax = [port for port in ports if isinstance(port, dict) and port.get("device_id") == "fixture-promax24"]
+    if (
+        len(promax) != 26
+        or {port.get("model_id") for port in promax} != {"USW-Pro-Max-24-PoE"}
+        or telemetry.get("port_summary", {}).get("poe_total_power_w") != 3.25
+    ):
+        raise SmokeFailure("Server changed Pro Max 24 PoE port or PoE projection")
+
+
+def _run_unifi_fixture_in_client_image(
+    image, network_name, client_name, device_id, previous_received_at,
+    secret_volume_name, client_env, fixture_directory, server_name, arguments,
+):
+    state = _container_state(client_name)
+    if not state["running"] or state["restart_count"] != 0:
+        raise SmokeFailure("normal Client must remain stable before the fixture report phase")
+    _run(["docker", "stop", client_name], timeout=30)
+    if _container_state(client_name)["running"]:
+        raise SmokeFailure("normal Client did not stop before the single fixture writer started")
+    # The fixture report has second-resolution timestamps. Ensure it is newer
+    # than the report sent by the normal production entrypoint in this test.
+    time.sleep(2)
+    root = Path(__file__).resolve().parents[1]
+    helper = root / "scripts" / "client_image_unifi_fixture.py"
+    fixture_name = "hardwarestatus-smoke-unifi-fixture-" + secrets.token_hex(5)
+    command = [
+        "docker", "run", "--rm", "--name", fixture_name,
+        "--network", network_name, "--read-only",
+        "--security-opt", "no-new-privileges:true",
+        "--tmpfs", "/tmp:size=32m,mode=1777,nosuid,nodev,noexec",
+        "--mount", "type=volume,src=" + secret_volume_name + ",dst=/run/secrets,readonly",
+        "--mount", "type=bind,src=" + str(helper) + ",dst=/ci/client_image_unifi_fixture.py,readonly",
+        "--mount", "type=bind,src=" + str(fixture_directory) + ",dst=/ci/unifi-fixtures,readonly",
+    ]
+    for key, value in client_env.items():
+        command.extend(["--env", key + "=" + value])
+    command.extend([
+        "--env", "PYTHONDONTWRITEBYTECODE=1",
+        "--entrypoint", "python3", image,
+        "/ci/client_image_unifi_fixture.py",
+        "--fixture-directory", "/ci/unifi-fixtures", "--send-report",
+    ])
+    result = _run(command, timeout=90)
+    if "UNIFI_FIXTURE_NORMALIZATION=PASS" not in result.stdout or "UNIFI_FIXTURE_REPORT=ACCEPTED" not in result.stdout:
+        raise SmokeFailure("actual Client image did not normalize and submit the sanitized UniFi fixture")
+    if "UNIFI_RPS_OUTPUT_W=101.0" not in result.stdout or "UNIFI_PROMAX24_PORTS=26" not in result.stdout:
+        raise SmokeFailure("actual Client image fixture totals did not match expected bounded projections")
+    unifi = _wait_for_unifi_fixture_report(
+        server_name, device_id, previous_received_at, arguments
+    )
+    _verify_unifi_frontend_render(unifi, root)
+    print("ACTUAL_IMAGE_UNIFI_FIXTURE=PASS")
+    print("SERVER_CONTRACT_FIXTURE_REPORT=ACCEPTED")
+    print("SERVER_UNIFI_RPS_OUTPUT_W=101")
+    print("SERVER_PROMAX24_ETHERNET_PORTS=26")
+    print("FRONTEND_FIXTURE_RENDER=PASS")
+
+
+def _verify_unifi_frontend_render(unifi, repository_root):
+    source = (
+        "const assert=require('node:assert/strict');\n"
+        "const app=require(" + json.dumps(str(repository_root / "web" / "js" / "app.js")) + ");\n"
+        "let input=''; process.stdin.setEncoding('utf8');\n"
+        "process.stdin.on('data',chunk=>input+=chunk);\n"
+        "process.stdin.on('end',()=>{const u=JSON.parse(input);"
+        "const r=app.unifiRPSMarkup(u); const p=app.unifiPortTelemetryMarkup(u);"
+        "assert.match(r,/101 W/); assert.match(r,/DC 6/);"
+        "assert.match(p,/Fixture Pro Max 24/); assert.match(p,/Port 26/);"
+        "assert.doesNotMatch(p,/rps-device-01/); console.log('FRONTEND_RENDER=PASS');});\n"
+    )
+    result = _run(["node", "-e", source], timeout=30, input_text=json.dumps(unifi, separators=(",", ":")))
+    if "FRONTEND_RENDER=PASS" not in result.stdout:
+        raise SmokeFailure("frontend did not render the Server-projected RPS and Pro Max fixture")
+
+
 def _verify_catalog_in_client_image(image):
     code = (
         "from unifi_model_catalog import load_catalog, resolve_model; "
@@ -478,12 +602,17 @@ def run_smoke(arguments):
                     + _safe_client_exit_summary(client_name, state)
                     + ")"
                 )
+            _run_unifi_fixture_in_client_image(
+                arguments.client_image, network_name, client_name, device_id,
+                device.get("received_at"), secret_volume_name, client_env,
+                ROOT / "clients" / "unifi_fixtures", server_name, arguments,
+            )
             print("CLIENT_IMAGE_SMOKE=PASS")
             print("DEVICE_V2_REPORT=ACCEPTED")
             print("DEVICE_ID=" + device_id)
             print("COLLECTED_AT=" + str(device["collected_at"]))
             print("RECEIVED_AT=" + str(device["received_at"]))
-            print("CLIENT_RESTART_COUNT=0")
+            print("ENTRYPOINT_CLIENT_RESTART_COUNT=0")
         finally:
             for name in reversed(created):
                 _run(["docker", "rm", "--force", name], check=False, timeout=30)

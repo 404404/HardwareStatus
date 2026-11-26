@@ -76,6 +76,7 @@ def _safe_error(code: str):
         "api_timeout": "UniFi API request timed out",
         "api_http_error": "UniFi API returned an HTTP error",
         "api_parse_failure": "UniFi API response was not valid JSON",
+        "api_normalization_failure": "UniFi API data could not be normalized",
         "api_endpoint_unsupported": "UniFi API endpoint is unsupported",
         "api_partial_failure": "UniFi API returned a partial observation",
         "api_site_ambiguity": "UniFi API site selection is ambiguous",
@@ -1463,6 +1464,32 @@ def _single_port_ap_runtime(device, model, static_ports, raw_ports):
     return observation
 
 
+ETHERNET_CATALOG_DEVICE_TYPES = frozenset({"gateway", "switch", "ap"})
+
+
+def _is_ethernet_catalog_model(model):
+    """Return whether a resolved V1 model has an Ethernet device contract."""
+    return (
+        isinstance(model, dict)
+        and model.get("schema_version") == 1
+        and model.get("device_type") in ETHERNET_CATALOG_DEVICE_TYPES
+        and isinstance(model.get("ports"), dict)
+        and isinstance(model["ports"].get("items"), list)
+    )
+
+
+def _static_ethernet_ports(model):
+    """Read static ports only from a validated Ethernet-shaped Catalog model."""
+    if not _is_ethernet_catalog_model(model):
+        return {}
+    return {
+        port["index"]: port
+        for port in model["ports"]["items"]
+        if isinstance(port, dict) and isinstance(port.get("index"), int)
+        and not isinstance(port.get("index"), bool)
+    }
+
+
 def _ports(legacy_payload, target, previous_samples, sample_time, target_detail=None, devices=None):
     target_id = _identifier(target.get("id")) if isinstance(target, dict) else None
     if not target_id:
@@ -1485,11 +1512,16 @@ def _ports(legacy_payload, target, previous_samples, sample_time, target_detail=
         device_id = next((device_id for device_id in known_devices if any(_identifier(legacy.get(key)) == device_id for key in ("device_id", "_id", "external_id"))), None)
         if device_id is None:
             continue
+        model = device_models.get(device_id)
+        # Catalog V2 RPS models are valid resolved models, but their six
+        # outputs are DC telemetry and must never enter the Ethernet table.
+        # Unknown models retain the existing runtime-only Ethernet behavior.
+        if model is not None and not _is_ethernet_catalog_model(model):
+            continue
         matched = True
         matched_device_ids.add(device_id)
         detail_capabilities = _detail_port_capabilities(target_detail) if device_id == target_id else {}
-        model = device_models.get(device_id)
-        static_ports = {port["index"]: port for port in model["ports"]["items"]} if model else {}
+        static_ports = _static_ethernet_ports(model)
         raw_ports = legacy.get("port_table") if isinstance(legacy.get("port_table"), list) else []
         for port in raw_ports[:MAX_UNIFI_PORTS_PER_DEVICE]:
             index = _counter(port, "port_idx", "idx", "portIndex")
@@ -1526,7 +1558,10 @@ def _ports(legacy_payload, target, previous_samples, sample_time, target_detail=
     # The Catalog is the left side of this join. A controller may omit a
     # device's runtime port observations entirely, while its resolved static
     # physical topology remains safe and useful to display.
-    catalog_device_ids = {device_id for device_id, model in device_models.items() if model is not None}
+    catalog_device_ids = {
+        device_id for device_id, model in device_models.items()
+        if _is_ethernet_catalog_model(model)
+    }
     if not matched and not catalog_device_ids:
         return None, None
     matched_device_ids.update(catalog_device_ids)
@@ -1534,7 +1569,7 @@ def _ports(legacy_payload, target, previous_samples, sample_time, target_detail=
     port_records = []
     for device_id in sorted(matched_device_ids):
         model = device_models.get(device_id)
-        static_ports = {port["index"]: port for port in model["ports"]["items"]} if model else {}
+        static_ports = _static_ethernet_ports(model)
         emitted = set()
         for static in sorted(static_ports.values(), key=lambda port: port["index"]):
             key = (device_id, static["index"])
@@ -1909,8 +1944,10 @@ class UniFiAPICollector:
         telemetry = None
         try:
             telemetry = _telemetry(payloads, site=selected_site, target=target, previous_samples=self._port_samples, sample_time=self._clock(), target_profile=self.target_profile)
-        except (APIError, AttributeError, KeyError, TypeError, ValueError) as exc:
-            error = _safe_error(exc.code if isinstance(exc, APIError) else "api_parse_failure")
+        except Exception:
+            # The HTTP adapter has already decoded JSON before this point.
+            # Do not misreport a local projection bug as a response parse error.
+            error = _safe_error("api_normalization_failure")
             failure_details["normalization"] = error
             endpoint_results.append({"name": "normalization", "required": True, "status": "error", "http_status": None, "error": error})
             failures.append(("normalization", error, True))

@@ -101,6 +101,7 @@ async function run(){
   assert.match(appSource, /invalid_value/);
   assert.match(appSource, /未配置 UniFi 目标/);
   assert.equal(app.unifiErrorText({error: {code: 'payload_too_large'}}), 'UniFi 遥测数据过大');
+  assert.equal(app.unifiErrorText({error: {code: 'api_normalization_failure'}}), 'UniFi API 数据归一化失败');
   assert.doesNotMatch(appSource, /已配置 UniFi 目标，但访问失败，请检查 SSH 密码和 API Key/);
   const collectionDiagnostics = app.collectionDiagnosticsMarkup([{domain: "hardware", component: "storage.physical_disks", status: "degraded", code: "smart_value_invalid", field: "hardware.storage.physical_disks[].error", reason: "<script>", source: "smartctl"}]);
   assert.match(collectionDiagnostics, /smart_value_invalid/);
@@ -311,6 +312,13 @@ async function run(){
   assert.match(apiDiagnosticsMarkup, /<th>对应标签页<\/th>/);
   assert.match(apiDiagnosticsMarkup, /<th>必需<\/th>/);
   const portTelemetryMarkup = app.unifiPortTelemetryMarkup({...udwUniFi, api: apiFixture});
+  const normalizationDiagnosticsMarkup = app.collectionDiagnosticsMarkup([], {...udwUniFi, api: {
+    enabled: true, endpoints: [{name: 'normalization', required: true, status: 'error', error: {
+      code: 'api_normalization_failure', message: 'UniFi API data could not be normalized', source: 'unifi-api'
+    }}]
+  }});
+  assert.match(normalizationDiagnosticsMarkup, /api_normalization_failure/);
+  assert.match(normalizationDiagnosticsMarkup, /UniFi API data could not be normalized/);
   const noPoeApiFixture = {...apiFixture, telemetry: {...apiFixture.telemetry,
     identity: {...apiFixture.telemetry.identity, model: 'UCG Max', display_name: 'UCG Max'},
     uplinks: [{name: 'UCG Max', device_id: 'ucg-1', model: 'UCG Max', model_profile_status: 'known', device_type: 'gateway', management_ip: '192.168.1.1', online: true, link_state: 'ONLINE'}],

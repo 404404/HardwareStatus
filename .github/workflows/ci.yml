@@ -178,6 +178,7 @@ jobs:
           clients/unifi_normalizer.py
           scripts/export-hermes-status.py
           scripts/hermes_config_summary.py
+          scripts/client_image_unifi_fixture.py
       - run: sh -n clients/entrypoint.sh
 
   frontend:
@@ -211,6 +212,9 @@ jobs:
           name: hardwarestatus-ci-catalog
           path: clients/unifi_catalog
       - uses: docker/setup-buildx-action@v3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - name: Prepare image provenance
         id: provenance
         shell: bash

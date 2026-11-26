@@ -327,6 +327,40 @@ func TestUniFiOptionalUnsupportedEndpointIsDiagnosticOnly(t *testing.T) {
 	}
 }
 
+func TestUniFiNormalizationFailureCodeContractAndDiagnostics(t *testing.T) {
+	now := "2026-11-26T00:00:00Z"
+	stats := validUniFiFixture("ucg-max")
+	stats.API = &UniFiAPIStats{
+		Enabled: true, Status: "partial", LastAttempt: &now, LastSuccess: &now,
+		Endpoints: []UniFiAPIEndpoint{
+			{Name: "info", Required: true, Status: "ok"},
+			{Name: "normalization", Required: true, Status: "error", Error: &ExtensionError{
+				Code: "api_normalization_failure", Message: "UniFi API data could not be normalized",
+				Source: "unifi-api", Retryable: true,
+			}},
+		},
+		Error: &ExtensionError{Code: "api_partial_failure", Message: "UniFi API returned a partial observation", Source: "unifi-api", Retryable: true},
+	}
+	raw, err := json.Marshal(stats)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := DecodeUniFiStatsJSON(raw)
+	if err != nil {
+		t.Fatalf("normalization error did not satisfy the UniFi API contract: %v", err)
+	}
+	if decoded.API == nil || len(decoded.API.Endpoints) != 2 || decoded.API.Endpoints[1].Error == nil || decoded.API.Endpoints[1].Error.Code != "api_normalization_failure" {
+		t.Fatalf("normalization error evidence was not preserved: %#v", decoded.API)
+	}
+	diagnostics := buildCollectionDiagnostics(ExtensionStats{UniFi: decoded}, nil)
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Component == "api.endpoint" && diagnostic.Resource == "normalization" && diagnostic.Code == "api_normalization_failure" {
+			return
+		}
+	}
+	t.Fatalf("normalization failure was not mapped to an endpoint diagnostic: %#v", diagnostics)
+}
+
 func TestUniFiPerDevicePoEContractRoundTripAndIsolation(t *testing.T) {
 	now := "2026-08-27T01:02:03Z"
 	status := 200

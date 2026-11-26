@@ -665,6 +665,7 @@ function unifiErrorText(unifi){
     api_timeout: 'UniFi API 请求超时',
     api_http_error: 'UniFi API 返回错误',
     api_parse_failure: 'UniFi API 响应解析失败',
+    api_normalization_failure: 'UniFi API 数据归一化失败',
     api_endpoint_unsupported: 'UniFi API 端点不支持',
     api_partial_failure: 'UniFi API 部分采集失败',
     host_key_failure: 'SSH 主机密钥验证失败',
